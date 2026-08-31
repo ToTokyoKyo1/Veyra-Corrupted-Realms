@@ -2,6 +2,7 @@ using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using Veyra.Core;
 
 namespace Veyra.Combat.Tutorial
 {
@@ -12,6 +13,9 @@ namespace Veyra.Combat.Tutorial
         Health,
         AwaitingFirstAttack,
         EnemyCounterattack,
+        AwaitingGuard,
+        AwaitingTechnique,
+        AwaitingAnalyze,
         EnemyLearning,
         VictoryGoal,
         Complete
@@ -24,20 +28,27 @@ namespace Veyra.Combat.Tutorial
         [SerializeField, Min(1)] private int enemyMaxHp = 100;
         [SerializeField, Min(1)] private int attackDamage = 20;
         [SerializeField, Min(1)] private int techniqueDamage = 32;
-        [SerializeField, Min(1)] private int enemyAttackDamage = 12;
-        [SerializeField, Min(0)] private int guardDamageReduction = 6;
-        [SerializeField, Min(0)] private int techniqueCooldownTurns = 2;
-        [SerializeField, Min(1.01f)] private float markDamageMultiplier = 1.5f;
+        [SerializeField, Min(1)] private int enemyAttackDamage = 25;
+        [SerializeField, Min(1)] private int techniqueCooldownTurns = 2;
         [SerializeField, Range(0, 2)] private int enemyIntelligenceLevel;
         [SerializeField, Min(0.1f)] private float resultReturnDelay = 2.5f;
+
+        [Header("Enemy profile")]
+        [SerializeField] private string enemyDisplayName = "Creatura Corrotta";
+        [SerializeField] private string enemyRace = "Creatura delle Radici";
+        [SerializeField, Range(0, 100)] private int enemyCorruptionPercent = 70;
+        [SerializeField] private EnemyMood enemyMood = EnemyMood.Arrabbiato;
 
         [Header("Action controls")]
         [SerializeField] private Button attackButton;
         [SerializeField] private Button guardButton;
         [SerializeField] private Button techniqueButton;
-        [SerializeField] private Button markButton;
+        [SerializeField] private Button analyzeButton;
         [SerializeField] private TMP_Text techniqueButtonLabel;
         [SerializeField] private GameObject attackHighlight;
+        [SerializeField] private GameObject guardHighlight;
+        [SerializeField] private GameObject techniqueHighlight;
+        [SerializeField] private GameObject analyzeHighlight;
 
         [Header("HUD")]
         [SerializeField] private TMP_Text combatMessage;
@@ -63,7 +74,6 @@ namespace Veyra.Combat.Tutorial
         [SerializeField] private GameObject heroTechniqueProjectile;
         [SerializeField] private GameObject enemyProjectile;
         [SerializeField] private GameObject guardVisual;
-        [SerializeField] private GameObject markVisual;
 
         [Header("Tutorial overlay")]
         [SerializeField] private GameObject tutorialOverlay;
@@ -71,6 +81,14 @@ namespace Veyra.Combat.Tutorial
         [SerializeField] private TMP_Text tutorialStepText;
         [SerializeField] private TMP_Text tutorialBodyText;
         [SerializeField] private Button tutorialNextButton;
+
+        [Header("Analyze panel")]
+        [SerializeField] private GameObject analyzePanel;
+        [SerializeField] private TMP_Text analyzeNameText;
+        [SerializeField] private TMP_Text analyzeRaceText;
+        [SerializeField] private TMP_Text analyzeCorruptionText;
+        [SerializeField] private TMP_Text analyzeMoodText;
+        [SerializeField] private Button analyzeCloseButton;
 
         [Header("Outcome overlay")]
         [SerializeField] private GameObject outcomeOverlay;
@@ -82,6 +100,7 @@ namespace Veyra.Combat.Tutorial
 
         private TutorialBattleState battleState;
         private bool actionRunning;
+        private bool analyzePanelOpen;
         private bool waitingForTutorialAdvance;
         private bool tutorialAdvanceRequested;
         private bool repeatedPatternMessageShown;
@@ -93,15 +112,16 @@ namespace Veyra.Combat.Tutorial
         private Vector3 techniqueProjectileBaseScale;
         private Vector3 enemyProjectileBaseScale;
         private Vector3 guardBaseScale;
-        private Vector3 markBaseScale;
 
         public int HeroCurrentHp => battleState?.HeroHp ?? heroMaxHp;
         public int EnemyCurrentHp => battleState?.EnemyHp ?? enemyMaxHp;
         public BattleOutcome Outcome => battleState?.Outcome ?? BattleOutcome.Ongoing;
         public TutorialStep CurrentTutorialStep { get; private set; }
         public bool IsActionRunning => actionRunning;
+        public bool IsAnalyzePanelOpen => analyzePanelOpen;
         public bool IsTutorialComplete => CurrentTutorialStep == TutorialStep.Complete;
         public int EnemyIntelligenceLevel => enemyIntelligenceLevel;
+        public int EnemyCorruptionPercent => ClampCorruptionPercent(enemyCorruptionPercent);
 
         private void Awake()
         {
@@ -113,12 +133,11 @@ namespace Veyra.Combat.Tutorial
         {
             heroMaxHp = Mathf.Max(1, heroMaxHp);
             enemyMaxHp = Mathf.Max(1, enemyMaxHp);
-            attackDamage = Mathf.Max(1, attackDamage);
-            techniqueDamage = Mathf.Max(1, techniqueDamage);
+            attackDamage = Mathf.Clamp(attackDamage, 1, int.MaxValue - 1);
+            techniqueDamage = Mathf.Max(attackDamage + 1, techniqueDamage);
             enemyAttackDamage = Mathf.Max(1, enemyAttackDamage);
-            guardDamageReduction = Mathf.Clamp(guardDamageReduction, 0, Mathf.Max(0, enemyAttackDamage - 1));
-            techniqueCooldownTurns = Mathf.Max(0, techniqueCooldownTurns);
-            markDamageMultiplier = Mathf.Max(1.01f, markDamageMultiplier);
+            techniqueCooldownTurns = Mathf.Max(1, techniqueCooldownTurns);
+            enemyCorruptionPercent = ClampCorruptionPercent(enemyCorruptionPercent);
             resultReturnDelay = Mathf.Max(0.1f, resultReturnDelay);
         }
 
@@ -131,7 +150,7 @@ namespace Veyra.Combat.Tutorial
                 return;
             }
 
-            if (actionRunning || battleState == null || battleState.IsFinished)
+            if (actionRunning || analyzePanelOpen || battleState == null || battleState.IsFinished)
             {
                 return;
             }
@@ -141,18 +160,21 @@ namespace Veyra.Combat.Tutorial
                 case TutorialStep.Welcome:
                     CurrentTutorialStep = TutorialStep.Positions;
                     ShowBlockingTutorial(
-                        "PASSO 2 / 7",
+                        "PASSO 2 / 10",
                         "Tu controlli l'eroe a sinistra. Il tuo avversario è la creatura corrotta a destra.");
                     break;
                 case TutorialStep.Positions:
                     CurrentTutorialStep = TutorialStep.Health;
                     ShowBlockingTutorial(
-                        "PASSO 3 / 7",
+                        "PASSO 3 / 10",
                         "Le barre mostrano i punti vita, o HP. Se i tuoi HP raggiungono zero, perdi.");
                     break;
                 case TutorialStep.Health:
-                    CurrentTutorialStep = TutorialStep.AwaitingFirstAttack;
-                    ShowAttackPrompt();
+                    ShowActionPrompt(
+                        TutorialStep.AwaitingFirstAttack,
+                        "PASSO 4 / 10",
+                        "Premi ATTACCO per colpire il nemico. Ogni attacco riduce gli HP del bersaglio.",
+                        BattleAction.Attack);
                     break;
             }
         }
@@ -172,9 +194,57 @@ namespace Veyra.Combat.Tutorial
             BeginPlayerAction(BattleAction.Technique);
         }
 
-        public void PreviewMark()
+        public void PreviewAnalyze()
         {
-            BeginPlayerAction(BattleAction.Mark);
+            if (actionRunning || analyzePanelOpen || battleState == null || battleState.IsFinished)
+            {
+                return;
+            }
+
+            bool isGuidedAnalyze = CurrentTutorialStep == TutorialStep.AwaitingAnalyze;
+            if (!isGuidedAnalyze && !IsTutorialComplete)
+            {
+                return;
+            }
+
+            BattleActionResult result = battleState.ResolvePlayerAction(BattleAction.Analyze);
+            if (!result.Accepted)
+            {
+                combatMessage.text = result.RejectionReason;
+                RefreshActionButtons();
+                return;
+            }
+
+            tutorialOverlay.SetActive(false);
+            SetAllHighlights(false);
+            SetAllActionButtons(false);
+            PopulateAnalyzePanel();
+            analyzeCloseButton.interactable = true;
+            analyzePanelOpen = true;
+            analyzePanel.SetActive(true);
+            combatMessage.text = "Informazioni sul nemico";
+        }
+
+        public void CloseAnalyzePanel()
+        {
+            if (!analyzePanelOpen)
+            {
+                return;
+            }
+
+            bool completesGuidedAnalyze = CurrentTutorialStep == TutorialStep.AwaitingAnalyze;
+            analyzeCloseButton.interactable = false;
+            analyzePanel.SetActive(false);
+            analyzePanelOpen = false;
+
+            if (completesGuidedAnalyze)
+            {
+                StartCoroutine(CompleteAnalyzeTutorial());
+                return;
+            }
+
+            combatMessage.text = "Analisi completata: nessun turno consumato";
+            RefreshActionButtons();
         }
 
         public void ReturnToMenu()
@@ -189,9 +259,12 @@ namespace Veyra.Combat.Tutorial
         {
             StopAllCoroutines();
             actionRunning = false;
+            analyzePanelOpen = false;
             waitingForTutorialAdvance = false;
             tutorialAdvanceRequested = false;
+            analyzePanel.SetActive(false);
             ResetPersistentEffects();
+            SetAllHighlights(false);
             SetAllActionButtons(false);
         }
 
@@ -213,7 +286,6 @@ namespace Veyra.Combat.Tutorial
             techniqueProjectileBaseScale = heroTechniqueProjectile.transform.localScale;
             enemyProjectileBaseScale = enemyProjectile.transform.localScale;
             guardBaseScale = guardVisual.transform.localScale;
-            markBaseScale = markVisual.transform.localScale;
         }
 
         private void InitializeBattle()
@@ -224,57 +296,61 @@ namespace Veyra.Combat.Tutorial
                 attackDamage,
                 techniqueDamage,
                 enemyAttackDamage,
-                guardDamageReduction,
                 techniqueCooldownTurns,
-                markDamageMultiplier,
                 historyCapacity: 8,
                 repeatedPatternLength: GetObservationLengthForIntelligence());
 
             actionRunning = false;
+            analyzePanelOpen = false;
             waitingForTutorialAdvance = false;
             tutorialAdvanceRequested = false;
             repeatedPatternMessageShown = false;
             CurrentTutorialStep = TutorialStep.Welcome;
 
             ResetPersistentEffects();
+            PopulateAnalyzePanel();
+            analyzePanel.SetActive(false);
+            analyzeCloseButton.interactable = true;
             UpdateHealthImmediate();
             UpdateStatusAndCooldown();
             intentText.text = "INTENZIONE\nATTACCO IN ARRIVO";
             combatMessage.text = "Impara le basi del combattimento";
             outcomeOverlay.SetActive(false);
             outcomeMenuButton.interactable = true;
-            attackHighlight.SetActive(false);
-            ShowBlockingTutorial("PASSO 1 / 7", "Benvenuto nel combattimento.");
+            SetAllHighlights(false);
+            ShowBlockingTutorial("PASSO 1 / 10", "Benvenuto nel combattimento.");
         }
 
         private void BeginPlayerAction(BattleAction action)
         {
-            if (actionRunning || battleState == null || battleState.IsFinished)
+            if (actionRunning || analyzePanelOpen || battleState == null || battleState.IsFinished)
             {
                 return;
             }
 
-            bool firstAttackRequired = CurrentTutorialStep == TutorialStep.AwaitingFirstAttack;
-            if (!IsTutorialComplete && (!firstAttackRequired || action != BattleAction.Attack))
+            TutorialStep startingStep = CurrentTutorialStep;
+            if (!IsActionAllowedByTutorial(action, startingStep))
             {
                 return;
             }
 
             if (!battleState.CanUsePlayerAction(action))
             {
-                combatMessage.text = "La Tecnica non è ancora pronta";
+                combatMessage.text = action == BattleAction.Technique
+                    ? "La Tecnica non è ancora pronta"
+                    : "Questa azione non è disponibile";
                 RefreshActionButtons();
                 return;
             }
 
             actionRunning = true;
             tutorialOverlay.SetActive(false);
-            attackHighlight.SetActive(false);
+            SetAllHighlights(false);
             SetAllActionButtons(false);
-            StartCoroutine(ResolveTurn(action, firstAttackRequired));
+            StartCoroutine(ResolveTurn(action, startingStep));
         }
 
-        private IEnumerator ResolveTurn(BattleAction action, bool isFirstAttack)
+        private IEnumerator ResolveTurn(BattleAction action, TutorialStep startingStep)
         {
             int enemyHpBefore = battleState.EnemyHp;
             BattleActionResult playerResult;
@@ -283,21 +359,49 @@ namespace Veyra.Combat.Tutorial
             {
                 case BattleAction.Attack:
                     combatMessage.text = "Hero01 attacca";
-                    yield return MoveActor(heroActor, heroBasePosition, heroBasePosition + Vector3.right * 0.72f, 0.16f);
-                    yield return MoveEffect(heroBasicProjectile, heroProjectileOrigin.position, enemyHitTarget.position, 0.24f);
+                    yield return MoveActor(
+                        heroActor,
+                        heroBasePosition,
+                        heroBasePosition + Vector3.right * 0.72f,
+                        0.16f);
+                    yield return MoveEffect(
+                        heroBasicProjectile,
+                        heroProjectileOrigin.position,
+                        enemyHitTarget.position,
+                        0.24f);
                     playerResult = battleState.ResolvePlayerAction(action);
                     yield return Flash(enemyVisual, Color.white, 0.16f);
-                    yield return AnimateHealth(enemyHealthFill, enemyHealthValue, enemyHpBefore, battleState.EnemyHp, battleState.EnemyMaxHp, 0.20f);
+                    yield return AnimateHealth(
+                        enemyHealthFill,
+                        enemyHealthValue,
+                        enemyHpBefore,
+                        battleState.EnemyHp,
+                        battleState.EnemyMaxHp,
+                        0.20f);
                     yield return MoveActor(heroActor, heroActor.localPosition, heroBasePosition, 0.16f);
                     break;
                 case BattleAction.Technique:
                     combatMessage.text = "Hero01 usa Tecnica";
-                    yield return MoveActor(heroActor, heroBasePosition, heroBasePosition + Vector3.right * 0.58f, 0.16f);
+                    yield return MoveActor(
+                        heroActor,
+                        heroBasePosition,
+                        heroBasePosition + Vector3.right * 0.58f,
+                        0.16f);
                     heroTechniqueProjectile.transform.localScale = techniqueProjectileBaseScale * 1.25f;
-                    yield return MoveEffect(heroTechniqueProjectile, heroProjectileOrigin.position, enemyHitTarget.position, 0.38f);
+                    yield return MoveEffect(
+                        heroTechniqueProjectile,
+                        heroProjectileOrigin.position,
+                        enemyHitTarget.position,
+                        0.38f);
                     playerResult = battleState.ResolvePlayerAction(action);
                     yield return Flash(enemyVisual, new Color(0.73f, 1f, 0.94f, 1f), 0.24f);
-                    yield return AnimateHealth(enemyHealthFill, enemyHealthValue, enemyHpBefore, battleState.EnemyHp, battleState.EnemyMaxHp, 0.22f);
+                    yield return AnimateHealth(
+                        enemyHealthFill,
+                        enemyHealthValue,
+                        enemyHpBefore,
+                        battleState.EnemyHp,
+                        battleState.EnemyMaxHp,
+                        0.22f);
                     yield return MoveActor(heroActor, heroActor.localPosition, heroBasePosition, 0.16f);
                     break;
                 case BattleAction.Guard:
@@ -306,14 +410,9 @@ namespace Veyra.Combat.Tutorial
                     guardVisual.SetActive(true);
                     yield return PulseScale(guardVisual, guardBaseScale, 1.28f, 0.34f);
                     break;
-                case BattleAction.Mark:
-                    combatMessage.text = "Marchio applicato: il prossimo colpo sarà potenziato";
-                    playerResult = battleState.ResolvePlayerAction(action);
-                    markVisual.SetActive(true);
-                    yield return PulseScale(markVisual, markBaseScale, 1.55f, 0.42f);
-                    break;
                 default:
                     actionRunning = false;
+                    RefreshActionButtons();
                     yield break;
             }
 
@@ -325,6 +424,8 @@ namespace Veyra.Combat.Tutorial
                 yield break;
             }
 
+            UpdateStatusAndCooldown();
+
             if (battleState.IsFinished)
             {
                 ShowOutcome();
@@ -333,11 +434,11 @@ namespace Veyra.Combat.Tutorial
 
             bool repeatedPattern = battleState.TryGetRepeatedPlayerAction(out _);
 
-            if (isFirstAttack)
+            if (startingStep == TutorialStep.AwaitingFirstAttack)
             {
                 yield return WaitForTutorialCard(
                     TutorialStep.EnemyCounterattack,
-                    "PASSO 5 / 7",
+                    "PASSO 5 / 10",
                     "Ora il nemico contrattacca. Anche i suoi attacchi riducono i tuoi HP.");
             }
 
@@ -348,33 +449,41 @@ namespace Veyra.Combat.Tutorial
                 yield break;
             }
 
-            if (isFirstAttack)
-            {
-                yield return WaitForTutorialCard(
-                    TutorialStep.EnemyLearning,
-                    "PASSO 6 / 7",
-                    "I nemici più evoluti osserveranno le tue abitudini e impareranno come combatti.");
-                yield return WaitForTutorialCard(
-                    TutorialStep.VictoryGoal,
-                    "PASSO 7 / 7",
-                    "Porta gli HP del nemico a zero per vincere.");
-                CurrentTutorialStep = TutorialStep.Complete;
-            }
-
-            actionRunning = false;
             ResetTransientEffects();
             UpdateStatusAndCooldown();
 
-            if (repeatedPattern && !repeatedPatternMessageShown)
+            if (startingStep == TutorialStep.AwaitingFirstAttack)
             {
-                repeatedPatternMessageShown = true;
-                combatMessage.text = "Il nemico ti sta osservando";
-            }
-            else
-            {
-                combatMessage.text = PlayerTurnMessage;
+                FinishWithActionPrompt(
+                    TutorialStep.AwaitingGuard,
+                    "PASSO 6 / 10",
+                    "Il nemico sta per attaccare di nuovo. Premi GUARDIA per parare il prossimo colpo.",
+                    BattleAction.Guard);
+                yield break;
             }
 
+            if (startingStep == TutorialStep.AwaitingGuard)
+            {
+                FinishWithActionPrompt(
+                    TutorialStep.AwaitingTechnique,
+                    "PASSO 7 / 10",
+                    "TECNICA è la tua mossa speciale. Infligge più danni, ma deve ricaricarsi dopo l'uso.",
+                    BattleAction.Technique);
+                yield break;
+            }
+
+            if (startingStep == TutorialStep.AwaitingTechnique)
+            {
+                FinishWithActionPrompt(
+                    TutorialStep.AwaitingAnalyze,
+                    "PASSO 8 / 10",
+                    "Usa ANALIZZA per conoscere meglio il nemico. Puoi scoprire la sua razza, la corruzione e il suo stato emotivo.",
+                    BattleAction.Analyze);
+                yield break;
+            }
+
+            actionRunning = false;
+            ShowPlayerTurnMessage(repeatedPattern);
             RefreshActionButtons();
         }
 
@@ -382,17 +491,62 @@ namespace Veyra.Combat.Tutorial
         {
             combatMessage.text = "Turno nemico";
             yield return new WaitForSecondsRealtime(0.16f);
-            yield return MoveActor(enemyActor, enemyBasePosition, enemyBasePosition + Vector3.left * 0.72f, 0.16f);
-            yield return MoveEffect(enemyProjectile, enemyProjectileOrigin.position, heroHitTarget.position, 0.26f);
+            yield return MoveActor(
+                enemyActor,
+                enemyBasePosition,
+                enemyBasePosition + Vector3.left * 0.72f,
+                0.16f);
+            yield return MoveEffect(
+                enemyProjectile,
+                enemyProjectileOrigin.position,
+                heroHitTarget.position,
+                0.26f);
 
             int heroHpBefore = battleState.HeroHp;
             BattleActionResult enemyResult = battleState.ResolveEnemyAttack();
-            Color hitColor = enemyResult.ReducedByGuard
-                ? new Color(0.73f, 1f, 0.94f, 1f)
-                : new Color(1f, 0.70f, 0.70f, 1f);
-            yield return Flash(heroVisual, hitColor, 0.16f);
-            yield return AnimateHealth(heroHealthFill, heroHealthValue, heroHpBefore, battleState.HeroHp, battleState.HeroMaxHp, 0.20f);
+            if (enemyResult.BlockedByGuard)
+            {
+                combatMessage.text = "PARATO";
+                guardVisual.SetActive(true);
+                yield return PulseScale(guardVisual, guardBaseScale, 1.36f, 0.28f);
+                yield return Flash(heroVisual, new Color(0.73f, 1f, 0.94f, 1f), 0.16f);
+            }
+            else
+            {
+                combatMessage.text = "Hero01 subisce " + enemyResult.DamageDealt + " danni";
+                yield return Flash(heroVisual, new Color(1f, 0.70f, 0.70f, 1f), 0.16f);
+            }
+
+            yield return AnimateHealth(
+                heroHealthFill,
+                heroHealthValue,
+                heroHpBefore,
+                battleState.HeroHp,
+                battleState.HeroMaxHp,
+                0.20f);
             yield return MoveActor(enemyActor, enemyActor.localPosition, enemyBasePosition, 0.16f);
+
+            if (enemyResult.BlockedByGuard)
+            {
+                yield return new WaitForSecondsRealtime(0.35f);
+            }
+        }
+
+        private IEnumerator CompleteAnalyzeTutorial()
+        {
+            yield return WaitForTutorialCard(
+                TutorialStep.EnemyLearning,
+                "PASSO 9 / 10",
+                "I nemici più evoluti osserveranno le azioni che hai già completato e impareranno come combatti.");
+            yield return WaitForTutorialCard(
+                TutorialStep.VictoryGoal,
+                "PASSO 10 / 10",
+                "Porta gli HP del nemico a zero per vincere.");
+
+            CurrentTutorialStep = TutorialStep.Complete;
+            combatMessage.text = PlayerTurnMessage;
+            UpdateStatusAndCooldown();
+            RefreshActionButtons();
         }
 
         private IEnumerator WaitForTutorialCard(TutorialStep step, string stepLabel, string body)
@@ -418,36 +572,62 @@ namespace Veyra.Combat.Tutorial
             tutorialNextButton.gameObject.SetActive(true);
             tutorialNextButton.interactable = true;
             tutorialOverlay.SetActive(true);
-            attackHighlight.SetActive(false);
+            SetAllHighlights(false);
             SetAllActionButtons(false);
         }
 
-        private void ShowAttackPrompt()
+        private void ShowActionPrompt(
+            TutorialStep step,
+            string stepLabel,
+            string body,
+            BattleAction requiredAction)
         {
-            tutorialStepText.text = "PASSO 4 / 7";
-            tutorialBodyText.text = "Premi ATTACCO per colpire il nemico. Ogni attacco riduce gli HP del bersaglio.";
+            CurrentTutorialStep = step;
+            tutorialStepText.text = stepLabel;
+            tutorialBodyText.text = body;
             tutorialInputBlocker.raycastTarget = false;
             tutorialNextButton.gameObject.SetActive(false);
             tutorialOverlay.SetActive(true);
-            attackHighlight.SetActive(true);
             SetAllActionButtons(false);
-            attackButton.interactable = true;
-            combatMessage.text = "Premi ATTACCO";
+            SetRequiredActionEnabled(requiredAction);
+            SetRequiredHighlight(requiredAction);
+            combatMessage.text = "Premi " + GetActionDisplayName(requiredAction);
+        }
+
+        private void FinishWithActionPrompt(
+            TutorialStep step,
+            string stepLabel,
+            string body,
+            BattleAction requiredAction)
+        {
+            actionRunning = false;
+            ShowActionPrompt(step, stepLabel, body, requiredAction);
         }
 
         private void ShowOutcome()
         {
             actionRunning = false;
+            analyzePanelOpen = false;
             waitingForTutorialAdvance = false;
             tutorialOverlay.SetActive(false);
-            attackHighlight.SetActive(false);
+            analyzePanel.SetActive(false);
+            SetAllHighlights(false);
             SetAllActionButtons(false);
             ResetTransientEffects();
 
             bool victory = battleState.Outcome == BattleOutcome.Victory;
+            if (victory)
+            {
+                CampaignProgressStore.MarkTutorialCompleted();
+            }
+
             outcomeText.text = victory ? "VITTORIA" : "SCONFITTA";
-            outcomeText.color = victory ? new Color(0.35f, 0.84f, 0.82f, 1f) : new Color(0.91f, 0.36f, 0.40f, 1f);
-            combatMessage.text = victory ? "La creatura corrotta è stata sconfitta" : "Hero01 non può più combattere";
+            outcomeText.color = victory
+                ? new Color(0.35f, 0.84f, 0.82f, 1f)
+                : new Color(0.91f, 0.36f, 0.40f, 1f);
+            combatMessage.text = victory
+                ? "La creatura corrotta è stata sconfitta"
+                : "Hero01 non può più combattere";
             intentText.text = "COMBATTIMENTO\nCONCLUSO";
             outcomeMenuButton.interactable = true;
             outcomeOverlay.SetActive(true);
@@ -462,17 +642,30 @@ namespace Veyra.Combat.Tutorial
 
         private void RefreshActionButtons()
         {
-            if (actionRunning || battleState == null || battleState.IsFinished)
+            if (actionRunning || analyzePanelOpen || battleState == null || battleState.IsFinished)
             {
                 SetAllActionButtons(false);
                 return;
             }
 
-            if (CurrentTutorialStep == TutorialStep.AwaitingFirstAttack)
+            switch (CurrentTutorialStep)
             {
-                SetAllActionButtons(false);
-                attackButton.interactable = true;
-                return;
+                case TutorialStep.AwaitingFirstAttack:
+                    SetAllActionButtons(false);
+                    attackButton.interactable = battleState.CanUsePlayerAction(BattleAction.Attack);
+                    return;
+                case TutorialStep.AwaitingGuard:
+                    SetAllActionButtons(false);
+                    guardButton.interactable = battleState.CanUsePlayerAction(BattleAction.Guard);
+                    return;
+                case TutorialStep.AwaitingTechnique:
+                    SetAllActionButtons(false);
+                    techniqueButton.interactable = battleState.CanUsePlayerAction(BattleAction.Technique);
+                    return;
+                case TutorialStep.AwaitingAnalyze:
+                    SetAllActionButtons(false);
+                    analyzeButton.interactable = battleState.CanUsePlayerAction(BattleAction.Analyze);
+                    return;
             }
 
             if (!IsTutorialComplete)
@@ -484,7 +677,7 @@ namespace Veyra.Combat.Tutorial
             attackButton.interactable = battleState.CanUsePlayerAction(BattleAction.Attack);
             guardButton.interactable = battleState.CanUsePlayerAction(BattleAction.Guard);
             techniqueButton.interactable = battleState.CanUsePlayerAction(BattleAction.Technique);
-            markButton.interactable = battleState.CanUsePlayerAction(BattleAction.Mark);
+            analyzeButton.interactable = battleState.CanUsePlayerAction(BattleAction.Analyze);
         }
 
         private void SetAllActionButtons(bool enabled)
@@ -492,7 +685,54 @@ namespace Veyra.Combat.Tutorial
             attackButton.interactable = enabled;
             guardButton.interactable = enabled;
             techniqueButton.interactable = enabled;
-            markButton.interactable = enabled;
+            analyzeButton.interactable = enabled;
+        }
+
+        private void SetRequiredActionEnabled(BattleAction action)
+        {
+            switch (action)
+            {
+                case BattleAction.Attack:
+                    attackButton.interactable = true;
+                    break;
+                case BattleAction.Guard:
+                    guardButton.interactable = true;
+                    break;
+                case BattleAction.Technique:
+                    techniqueButton.interactable = true;
+                    break;
+                case BattleAction.Analyze:
+                    analyzeButton.interactable = true;
+                    break;
+            }
+        }
+
+        private void SetRequiredHighlight(BattleAction action)
+        {
+            SetAllHighlights(false);
+            switch (action)
+            {
+                case BattleAction.Attack:
+                    attackHighlight.SetActive(true);
+                    break;
+                case BattleAction.Guard:
+                    guardHighlight.SetActive(true);
+                    break;
+                case BattleAction.Technique:
+                    techniqueHighlight.SetActive(true);
+                    break;
+                case BattleAction.Analyze:
+                    analyzeHighlight.SetActive(true);
+                    break;
+            }
+        }
+
+        private void SetAllHighlights(bool active)
+        {
+            attackHighlight.SetActive(active);
+            guardHighlight.SetActive(active);
+            techniqueHighlight.SetActive(active);
+            analyzeHighlight.SetActive(active);
         }
 
         private void UpdateStatusAndCooldown()
@@ -502,23 +742,20 @@ namespace Veyra.Combat.Tutorial
                 return;
             }
 
-            techniqueButtonLabel.text = battleState.TechniqueCooldownRemaining > 0
-                ? "TECNICA\n" + battleState.TechniqueCooldownRemaining + " TURNI"
-                : "TECNICA";
-
-            if (battleState.IsMarkPrepared)
+            if (battleState.TechniqueCooldownRemaining > 0)
             {
-                int bonusPercent = Mathf.RoundToInt((markDamageMultiplier - 1f) * 100f);
-                statusText.text = "MARCHIO\nPROSSIMO COLPO +" + bonusPercent + "%";
-            }
-            else if (battleState.IsGuardPrepared)
-            {
-                statusText.text = "GUARDIA\nDANNO RIDOTTO";
+                string turnLabel = battleState.TechniqueCooldownRemaining == 1 ? " TURNO" : " TURNI";
+                techniqueButtonLabel.text =
+                    "TECNICA\n" + battleState.TechniqueCooldownRemaining + turnLabel;
             }
             else
             {
-                statusText.text = "STATO\nPRONTO";
+                techniqueButtonLabel.text = "TECNICA";
             }
+
+            statusText.text = battleState.IsGuardPrepared
+                ? "GUARDIA\nPROSSIMO COLPO PARATO"
+                : "STATO\nPRONTO";
         }
 
         private void UpdateHealthImmediate()
@@ -529,12 +766,83 @@ namespace Veyra.Combat.Tutorial
             enemyHealthValue.text = battleState.EnemyHp + " / " + battleState.EnemyMaxHp;
         }
 
+        private void PopulateAnalyzePanel()
+        {
+            analyzeNameText.text = "NOME\n" + enemyDisplayName;
+            analyzeRaceText.text = "RAZZA\n" + enemyRace;
+            analyzeCorruptionText.text =
+                "CORRUZIONE\n" + ClampCorruptionPercent(enemyCorruptionPercent) + "%";
+            analyzeMoodText.text = "STATO ATTUALE\n" + GetMoodDisplayName(enemyMood);
+        }
+
+        private void ShowPlayerTurnMessage(bool repeatedPattern)
+        {
+            if (repeatedPattern && !repeatedPatternMessageShown)
+            {
+                repeatedPatternMessageShown = true;
+                combatMessage.text = "Il nemico ti sta osservando";
+            }
+            else
+            {
+                combatMessage.text = PlayerTurnMessage;
+            }
+        }
+
+        private bool IsActionAllowedByTutorial(BattleAction action, TutorialStep step)
+        {
+            if (step == TutorialStep.Complete)
+            {
+                return action != BattleAction.Analyze;
+            }
+
+            return (step == TutorialStep.AwaitingFirstAttack && action == BattleAction.Attack) ||
+                   (step == TutorialStep.AwaitingGuard && action == BattleAction.Guard) ||
+                   (step == TutorialStep.AwaitingTechnique && action == BattleAction.Technique);
+        }
+
         private int GetObservationLengthForIntelligence()
         {
             // Il tutorial (livello 0) necessita di tre azioni uguali prima di riconoscere
             // un'abitudine. I livelli futuri possono osservare la stessa cronologia più
             // rapidamente, senza conoscere l'azione corrente del giocatore.
             return enemyIntelligenceLevel == 0 ? 3 : 2;
+        }
+
+        private static string GetActionDisplayName(BattleAction action)
+        {
+            switch (action)
+            {
+                case BattleAction.Attack:
+                    return "ATTACCO";
+                case BattleAction.Guard:
+                    return "GUARDIA";
+                case BattleAction.Technique:
+                    return "TECNICA";
+                case BattleAction.Analyze:
+                    return "ANALIZZA";
+                default:
+                    return string.Empty;
+            }
+        }
+
+        public static int ClampCorruptionPercent(int value)
+        {
+            return Mathf.Clamp(value, 0, 100);
+        }
+
+        private static string GetMoodDisplayName(EnemyMood mood)
+        {
+            switch (mood)
+            {
+                case EnemyMood.Felice:
+                    return "Felice";
+                case EnemyMood.Triste:
+                    return "Triste";
+                case EnemyMood.Arrabbiato:
+                    return "Arrabbiato";
+                default:
+                    return "Sconosciuto";
+            }
         }
 
         private static IEnumerator AnimateHealth(
@@ -599,7 +907,11 @@ namespace Veyra.Combat.Tutorial
             target.color = original;
         }
 
-        private static IEnumerator PulseScale(GameObject effect, Vector3 baseScale, float multiplier, float duration)
+        private static IEnumerator PulseScale(
+            GameObject effect,
+            Vector3 baseScale,
+            float multiplier,
+            float duration)
         {
             effect.SetActive(true);
             float halfDuration = duration * 0.5f;
@@ -608,9 +920,10 @@ namespace Veyra.Combat.Tutorial
             {
                 elapsed += Time.unscaledDeltaTime;
                 float normalized = Mathf.Clamp01(elapsed / halfDuration);
+                float returnNormalized = Mathf.Clamp01((elapsed - halfDuration) / halfDuration);
                 float factor = elapsed <= halfDuration
                     ? Mathf.Lerp(1f, multiplier, normalized)
-                    : Mathf.Lerp(multiplier, 1f, normalized - 1f);
+                    : Mathf.Lerp(multiplier, 1f, returnNormalized);
                 effect.transform.localScale = baseScale * factor;
                 yield return null;
             }
@@ -628,7 +941,6 @@ namespace Veyra.Combat.Tutorial
             heroTechniqueProjectile.transform.localScale = techniqueProjectileBaseScale;
             enemyProjectile.transform.localScale = enemyProjectileBaseScale;
             guardVisual.transform.localScale = guardBaseScale;
-            markVisual.transform.localScale = markBaseScale;
             ResetTransientEffects();
         }
 
@@ -641,7 +953,6 @@ namespace Veyra.Combat.Tutorial
             heroTechniqueProjectile.SetActive(false);
             enemyProjectile.SetActive(false);
             guardVisual.SetActive(battleState != null && battleState.IsGuardPrepared);
-            markVisual.SetActive(battleState != null && battleState.IsMarkPrepared);
         }
     }
 }

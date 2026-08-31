@@ -12,6 +12,12 @@ EditorBuildSettings:
     path: Assets/_Veyra/Scenes/SCN_W01_L01_Tutorial.unity
     guid: 75244b2f52d3bcc4990607a3fd7353ba
   - enabled: 1
+    path: Assets/_Veyra/Scenes/SCN_W01_L02_ThornGuardian.unity
+    guid: ab9e30b319776cf4284311a662c5fc57
+  - enabled: 1
+    path: Assets/_Veyra/Scenes/SCN_W01_L03_AshWatcher.unity
+    guid: 4dbb2b5db9bc97c43b85af5c0e5154ca
+  - enabled: 1
     path: Assets/Scenes/SampleScene.unity
     guid: 8c9cfa26abfee488c85f1582747f6a02
   - enabled: 1

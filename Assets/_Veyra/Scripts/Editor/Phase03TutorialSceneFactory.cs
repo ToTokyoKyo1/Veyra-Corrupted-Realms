@@ -114,8 +114,7 @@ namespace Veyra.Editor
                 Phase02PrototypeAssetFactory.HeroBasicProjectilePrefabPath,
                 Phase02PrototypeAssetFactory.HeroTechniqueProjectilePrefabPath,
                 Phase02PrototypeAssetFactory.EnemyProjectilePrefabPath,
-                Phase02PrototypeAssetFactory.GuardRingPrefabPath,
-                Phase02PrototypeAssetFactory.MarkPulsePrefabPath
+                Phase02PrototypeAssetFactory.GuardRingPrefabPath
             };
 
             List<string> missing = requiredPaths
@@ -148,14 +147,23 @@ namespace Veyra.Editor
             string ownedRootName,
             Phase03TutorialSetupReport report)
         {
-            Transform ownedRoot = FindDirectChild(sceneRoot, ownedRootName);
-            if (ownedRoot == null)
+            int removedCount = 0;
+            for (int index = sceneRoot.childCount - 1; index >= 0; index--)
             {
-                return;
+                Transform child = sceneRoot.GetChild(index);
+                if (child.name != ownedRootName)
+                {
+                    continue;
+                }
+
+                UnityEngine.Object.DestroyImmediate(child.gameObject);
+                removedCount++;
             }
 
-            UnityEngine.Object.DestroyImmediate(ownedRoot.gameObject);
-            report.Configure(ownedRootName + " (root Phase 03 rigenerato)");
+            if (removedCount > 0)
+            {
+                report.Configure(ownedRootName + " (root Phase 03 rigenerato: " + removedCount + ")");
+            }
         }
 
         private static void RemoveLegacyRoots(Transform sceneRoot, Phase03TutorialSetupReport report)
@@ -237,11 +245,6 @@ namespace Veyra.Editor
             world.enemyVisual.flipX = true;
             world.enemyProjectileOrigin = CreateMarker("EnemyProjectileOrigin", enemySlot.transform, new Vector3(-0.75f, 1.45f, 0f));
             world.enemyHitTarget = CreateMarker("EnemyHitTarget", enemySlot.transform, new Vector3(-0.10f, 1.35f, 0f));
-            world.markVisual = InstantiatePrefab(
-                Phase02PrototypeAssetFactory.MarkPulsePrefabPath,
-                enemySlot.transform,
-                "MarkVisual");
-            world.markVisual.transform.localPosition = new Vector3(0f, 1.35f, 0f);
 
             GameObject effects = new GameObject("PersistentEffects");
             effects.transform.SetParent(world.root.transform, false);
@@ -369,6 +372,7 @@ namespace Veyra.Editor
 
             CreateActionBar(safeArea, font, ui);
             CreateTutorialOverlay(safeArea, font, ui);
+            CreateAnalyzePanel(safeArea, font, ui);
             CreateOutcomeOverlay(safeArea, font, ui);
             return ui;
         }
@@ -465,16 +469,32 @@ namespace Veyra.Editor
             ui.attackButton = FindRequiredComponentInChildren<Button>(ui.actionBar.transform, "BTN_Attack");
             ui.guardButton = FindRequiredComponentInChildren<Button>(ui.actionBar.transform, "BTN_Guard");
             ui.techniqueButton = FindRequiredComponentInChildren<Button>(ui.actionBar.transform, "BTN_Technique");
-            ui.markButton = FindRequiredComponentInChildren<Button>(ui.actionBar.transform, "BTN_Mark");
+            ui.analyzeButton = FindRequiredComponentInChildren<Button>(ui.actionBar.transform, "BTN_Mark");
+            ui.analyzeButton.gameObject.name = "BTN_Analyze";
+            TMP_Text analyzeButtonLabel = ui.analyzeButton.GetComponentInChildren<TMP_Text>(true);
+            if (analyzeButtonLabel == null)
+            {
+                throw new InvalidOperationException("Testo del pulsante ANALIZZA mancante nel prefab della barra azioni.");
+            }
+
+            analyzeButtonLabel.text = "ANALIZZA";
             ui.techniqueButtonLabel = ui.techniqueButton.GetComponentInChildren<TMP_Text>(true);
             if (ui.techniqueButtonLabel == null)
             {
                 throw new InvalidOperationException("Testo del pulsante TECNICA mancante nel prefab della barra azioni.");
             }
 
+            ui.attackHighlight = CreateActionHighlight("AttackHighlight", ui.attackButton.transform);
+            ui.guardHighlight = CreateActionHighlight("GuardHighlight", ui.guardButton.transform);
+            ui.techniqueHighlight = CreateActionHighlight("TechniqueHighlight", ui.techniqueButton.transform);
+            ui.analyzeHighlight = CreateActionHighlight("AnalyzeHighlight", ui.analyzeButton.transform);
+        }
+
+        private static GameObject CreateActionHighlight(string name, Transform parent)
+        {
             RectTransform highlight = Phase02UiFactory.CreatePanel(
-                "AttackHighlight",
-                ui.attackButton.transform,
+                name,
+                parent,
                 Vector2.zero,
                 Vector2.one,
                 new Vector2(-10f, -10f),
@@ -482,7 +502,7 @@ namespace Veyra.Editor
                 new Color(Phase02UiFactory.Gold.r, Phase02UiFactory.Gold.g, Phase02UiFactory.Gold.b, 0.42f));
             highlight.SetSiblingIndex(0);
             highlight.GetComponent<Image>().raycastTarget = false;
-            ui.attackHighlight = highlight.gameObject;
+            return highlight.gameObject;
         }
 
         private static void CreateTutorialOverlay(RectTransform safeArea, TMP_FontAsset font, BattleUi ui)
@@ -513,7 +533,7 @@ namespace Veyra.Editor
             ui.tutorialStepText = Phase02UiFactory.CreateText(
                 "TXT_TutorialStep",
                 card,
-                "PASSO 1 / 7",
+                "PASSO 1 / 10",
                 30f,
                 Phase02UiFactory.Gold,
                 TextAlignmentOptions.Center,
@@ -543,6 +563,113 @@ namespace Veyra.Editor
                 font,
                 new Vector2(0.18f, 0.07f),
                 new Vector2(0.82f, 0.28f),
+                Vector2.zero,
+                Vector2.zero,
+                true);
+        }
+
+        private static void CreateAnalyzePanel(RectTransform safeArea, TMP_FontAsset font, BattleUi ui)
+        {
+            RectTransform overlay = Phase02UiFactory.CreateRect("AnalyzePanel", safeArea);
+            Phase02UiFactory.SetRect(overlay, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            ui.analyzePanel = overlay.gameObject;
+
+            Phase02UiFactory.CreatePanel(
+                "Dimmer",
+                overlay,
+                Vector2.zero,
+                Vector2.one,
+                Vector2.zero,
+                Vector2.zero,
+                new Color(0.02f, 0.05f, 0.045f, 0.88f),
+                true);
+
+            RectTransform card = Phase02UiFactory.CreatePanel(
+                "EnemyInfoCard",
+                overlay,
+                new Vector2(0.075f, 0.285f),
+                new Vector2(0.925f, 0.725f),
+                Vector2.zero,
+                Vector2.zero,
+                Phase02UiFactory.Panel);
+
+            Phase02UiFactory.CreateText(
+                "TXT_AnalyzeTitle",
+                card,
+                "DOSSIER NEMICO",
+                36f,
+                Phase02UiFactory.Gold,
+                TextAlignmentOptions.Center,
+                font,
+                new Vector2(0.07f, 0.82f),
+                new Vector2(0.93f, 0.95f),
+                Vector2.zero,
+                Vector2.zero,
+                FontStyles.Bold);
+
+            ui.analyzeNameText = Phase02UiFactory.CreateText(
+                "TXT_EnemyInfoName",
+                card,
+                "NOME\nCreatura Corrotta",
+                29f,
+                Phase02UiFactory.MainText,
+                TextAlignmentOptions.Center,
+                font,
+                new Vector2(0.08f, 0.63f),
+                new Vector2(0.92f, 0.81f),
+                Vector2.zero,
+                Vector2.zero,
+                FontStyles.Bold);
+
+            ui.analyzeRaceText = Phase02UiFactory.CreateText(
+                "TXT_EnemyInfoRace",
+                card,
+                "RAZZA\nCreatura delle Radici",
+                27f,
+                Phase02UiFactory.Light,
+                TextAlignmentOptions.Center,
+                font,
+                new Vector2(0.08f, 0.39f),
+                new Vector2(0.49f, 0.62f),
+                Vector2.zero,
+                Vector2.zero,
+                FontStyles.Bold);
+
+            ui.analyzeCorruptionText = Phase02UiFactory.CreateText(
+                "TXT_EnemyInfoCorruption",
+                card,
+                "CORRUZIONE\n70%",
+                27f,
+                Phase02UiFactory.Corruption,
+                TextAlignmentOptions.Center,
+                font,
+                new Vector2(0.51f, 0.39f),
+                new Vector2(0.92f, 0.62f),
+                Vector2.zero,
+                Vector2.zero,
+                FontStyles.Bold);
+
+            ui.analyzeMoodText = Phase02UiFactory.CreateText(
+                "TXT_EnemyInfoMood",
+                card,
+                "STATO ATTUALE\nArrabbiato",
+                29f,
+                Phase02UiFactory.MainText,
+                TextAlignmentOptions.Center,
+                font,
+                new Vector2(0.08f, 0.19f),
+                new Vector2(0.92f, 0.39f),
+                Vector2.zero,
+                Vector2.zero,
+                FontStyles.Bold);
+
+            ui.analyzeCloseButton = Phase02UiFactory.CreateButton(
+                "BTN_CloseAnalyze",
+                card,
+                "CHIUDI",
+                font,
+                new Vector2(0.18f, 0.04f),
+                new Vector2(0.82f, 0.18f),
                 Vector2.zero,
                 Vector2.zero,
                 true);
@@ -607,19 +734,24 @@ namespace Veyra.Editor
             SetInt(serialized, "enemyMaxHp", 100);
             SetInt(serialized, "attackDamage", 20);
             SetInt(serialized, "techniqueDamage", 32);
-            SetInt(serialized, "enemyAttackDamage", 12);
-            SetInt(serialized, "guardDamageReduction", 6);
+            SetInt(serialized, "enemyAttackDamage", 25);
             SetInt(serialized, "techniqueCooldownTurns", 2);
-            SetFloat(serialized, "markDamageMultiplier", 1.5f);
             SetInt(serialized, "enemyIntelligenceLevel", 0);
             SetFloat(serialized, "resultReturnDelay", 2.5f);
+            SetString(serialized, "enemyDisplayName", "Creatura Corrotta");
+            SetString(serialized, "enemyRace", "Creatura delle Radici");
+            SetInt(serialized, "enemyCorruptionPercent", 70);
+            SetEnumIndex(serialized, "enemyMood", 2);
 
             SetObject(serialized, "attackButton", ui.attackButton);
             SetObject(serialized, "guardButton", ui.guardButton);
             SetObject(serialized, "techniqueButton", ui.techniqueButton);
-            SetObject(serialized, "markButton", ui.markButton);
+            SetObject(serialized, "analyzeButton", ui.analyzeButton);
             SetObject(serialized, "techniqueButtonLabel", ui.techniqueButtonLabel);
             SetObject(serialized, "attackHighlight", ui.attackHighlight);
+            SetObject(serialized, "guardHighlight", ui.guardHighlight);
+            SetObject(serialized, "techniqueHighlight", ui.techniqueHighlight);
+            SetObject(serialized, "analyzeHighlight", ui.analyzeHighlight);
 
             SetObject(serialized, "combatMessage", ui.combatMessage);
             SetObject(serialized, "intentText", ui.intentText);
@@ -642,13 +774,19 @@ namespace Veyra.Editor
             SetObject(serialized, "heroTechniqueProjectile", world.heroTechniqueProjectile);
             SetObject(serialized, "enemyProjectile", world.enemyProjectile);
             SetObject(serialized, "guardVisual", world.guardVisual);
-            SetObject(serialized, "markVisual", world.markVisual);
 
             SetObject(serialized, "tutorialOverlay", ui.tutorialOverlay);
             SetObject(serialized, "tutorialInputBlocker", ui.tutorialInputBlocker);
             SetObject(serialized, "tutorialStepText", ui.tutorialStepText);
             SetObject(serialized, "tutorialBodyText", ui.tutorialBodyText);
             SetObject(serialized, "tutorialNextButton", ui.tutorialNextButton);
+
+            SetObject(serialized, "analyzePanel", ui.analyzePanel);
+            SetObject(serialized, "analyzeNameText", ui.analyzeNameText);
+            SetObject(serialized, "analyzeRaceText", ui.analyzeRaceText);
+            SetObject(serialized, "analyzeCorruptionText", ui.analyzeCorruptionText);
+            SetObject(serialized, "analyzeMoodText", ui.analyzeMoodText);
+            SetObject(serialized, "analyzeCloseButton", ui.analyzeCloseButton);
 
             SetObject(serialized, "outcomeOverlay", ui.outcomeOverlay);
             SetObject(serialized, "outcomeText", ui.outcomeText);
@@ -678,7 +816,8 @@ namespace Veyra.Editor
             UnityEventTools.AddPersistentListener(ui.attackButton.onClick, controller.PreviewAttack);
             UnityEventTools.AddPersistentListener(ui.guardButton.onClick, controller.PreviewGuard);
             UnityEventTools.AddPersistentListener(ui.techniqueButton.onClick, controller.PreviewTechnique);
-            UnityEventTools.AddPersistentListener(ui.markButton.onClick, controller.PreviewMark);
+            UnityEventTools.AddPersistentListener(ui.analyzeButton.onClick, controller.PreviewAnalyze);
+            UnityEventTools.AddPersistentListener(ui.analyzeCloseButton.onClick, controller.CloseAnalyzePanel);
             UnityEventTools.AddPersistentListener(ui.tutorialNextButton.onClick, controller.AdvanceTutorial);
             UnityEventTools.AddPersistentListener(ui.backButton.onClick, navigation.BackToMenu);
             UnityEventTools.AddPersistentListener(ui.outcomeMenuButton.onClick, navigation.BackToMenu);
@@ -690,14 +829,17 @@ namespace Veyra.Editor
             world.heroTechniqueProjectile.SetActive(false);
             world.enemyProjectile.SetActive(false);
             world.guardVisual.SetActive(false);
-            world.markVisual.SetActive(false);
 
             ui.attackButton.interactable = false;
             ui.guardButton.interactable = false;
             ui.techniqueButton.interactable = false;
-            ui.markButton.interactable = false;
+            ui.analyzeButton.interactable = false;
             ui.attackHighlight.SetActive(false);
+            ui.guardHighlight.SetActive(false);
+            ui.techniqueHighlight.SetActive(false);
+            ui.analyzeHighlight.SetActive(false);
             ui.tutorialOverlay.SetActive(true);
+            ui.analyzePanel.SetActive(false);
             ui.outcomeOverlay.SetActive(false);
         }
 
@@ -845,6 +987,29 @@ namespace Veyra.Editor
             property.floatValue = value;
         }
 
+        private static void SetString(SerializedObject serialized, string propertyName, string value)
+        {
+            SerializedProperty property = RequireProperty(serialized, propertyName);
+            property.stringValue = value;
+        }
+
+        private static void SetEnumIndex(SerializedObject serialized, string propertyName, int value)
+        {
+            SerializedProperty property = RequireProperty(serialized, propertyName);
+            if (property.propertyType != SerializedPropertyType.Enum)
+            {
+                throw new InvalidOperationException(
+                    serialized.targetObject.GetType().Name + "." + propertyName + " deve essere un enum serializzato.");
+            }
+
+            if (value < 0 || value >= property.enumDisplayNames.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "Indice enum non valido per " + propertyName + ".");
+            }
+
+            property.enumValueIndex = value;
+        }
+
         private static SerializedProperty RequireProperty(SerializedObject serialized, string propertyName)
         {
             SerializedProperty property = serialized.FindProperty(propertyName);
@@ -873,7 +1038,6 @@ namespace Veyra.Editor
             internal GameObject heroTechniqueProjectile;
             internal GameObject enemyProjectile;
             internal GameObject guardVisual;
-            internal GameObject markVisual;
         }
 
         private sealed class BattleUi
@@ -883,9 +1047,12 @@ namespace Veyra.Editor
             internal Button attackButton;
             internal Button guardButton;
             internal Button techniqueButton;
-            internal Button markButton;
+            internal Button analyzeButton;
             internal TMP_Text techniqueButtonLabel;
             internal GameObject attackHighlight;
+            internal GameObject guardHighlight;
+            internal GameObject techniqueHighlight;
+            internal GameObject analyzeHighlight;
             internal TMP_Text combatMessage;
             internal TMP_Text intentText;
             internal TMP_Text statusText;
@@ -899,6 +1066,12 @@ namespace Veyra.Editor
             internal TMP_Text tutorialStepText;
             internal TMP_Text tutorialBodyText;
             internal Button tutorialNextButton;
+            internal GameObject analyzePanel;
+            internal TMP_Text analyzeNameText;
+            internal TMP_Text analyzeRaceText;
+            internal TMP_Text analyzeCorruptionText;
+            internal TMP_Text analyzeMoodText;
+            internal Button analyzeCloseButton;
             internal GameObject outcomeOverlay;
             internal TMP_Text outcomeText;
             internal Button outcomeMenuButton;

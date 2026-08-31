@@ -9,7 +9,14 @@ namespace Veyra.Combat.Tutorial
         Attack,
         Technique,
         Guard,
-        Mark
+        Analyze
+    }
+
+    public enum EnemyMood
+    {
+        Felice,
+        Triste,
+        Arrabbiato
     }
 
     public enum BattleOutcome
@@ -25,16 +32,16 @@ namespace Veyra.Combat.Tutorial
             bool accepted,
             BattleAction action,
             int damageDealt,
-            bool consumedMark,
-            bool reducedByGuard,
+            bool consumesTurn,
+            bool blockedByGuard,
             BattleOutcome outcome,
             string rejectionReason)
         {
             Accepted = accepted;
             Action = action;
             DamageDealt = damageDealt;
-            ConsumedMark = consumedMark;
-            ReducedByGuard = reducedByGuard;
+            ConsumesTurn = consumesTurn;
+            BlockedByGuard = blockedByGuard;
             Outcome = outcome;
             RejectionReason = rejectionReason;
         }
@@ -45,9 +52,9 @@ namespace Veyra.Combat.Tutorial
 
         public int DamageDealt { get; }
 
-        public bool ConsumedMark { get; }
+        public bool ConsumesTurn { get; }
 
-        public bool ReducedByGuard { get; }
+        public bool BlockedByGuard { get; }
 
         public BattleOutcome Outcome { get; }
 
@@ -56,16 +63,16 @@ namespace Veyra.Combat.Tutorial
         internal static BattleActionResult Completed(
             BattleAction action,
             int damageDealt,
-            bool consumedMark,
-            bool reducedByGuard,
+            bool consumesTurn,
+            bool blockedByGuard,
             BattleOutcome outcome)
         {
             return new BattleActionResult(
                 true,
                 action,
                 damageDealt,
-                consumedMark,
-                reducedByGuard,
+                consumesTurn,
+                blockedByGuard,
                 outcome,
                 string.Empty);
         }
@@ -83,6 +90,7 @@ namespace Veyra.Combat.Tutorial
     {
         private const string BattleFinishedReason = "The battle has already ended.";
         private const string TechniqueCooldownReason = "Technique is still on cooldown.";
+        private const string GuardAlreadyPreparedReason = "Guard is already prepared.";
         private const string UnknownActionReason = "The requested action is not supported.";
 
         private readonly List<BattleAction> completedPlayerActions = new List<BattleAction>();
@@ -95,10 +103,8 @@ namespace Veyra.Combat.Tutorial
             int enemyMaxHp = 100,
             int attackDamage = 20,
             int techniqueDamage = 32,
-            int enemyAttackDamage = 12,
-            int guardDamageReduction = 6,
+            int enemyAttackDamage = 25,
             int techniqueCooldownTurns = 2,
-            float markDamageMultiplier = 1.5f,
             int historyCapacity = 8,
             int repeatedPatternLength = 2)
         {
@@ -108,27 +114,18 @@ namespace Veyra.Combat.Tutorial
             RequirePositive(techniqueDamage, nameof(techniqueDamage));
             RequirePositive(enemyAttackDamage, nameof(enemyAttackDamage));
 
-            if (guardDamageReduction < 0 || guardDamageReduction >= enemyAttackDamage)
+            if (techniqueDamage <= attackDamage)
             {
                 throw new ArgumentOutOfRangeException(
-                    nameof(guardDamageReduction),
-                    "Guard reduction must be non-negative and leave at least one point of enemy damage.");
+                    nameof(techniqueDamage),
+                    "Technique damage must be greater than base attack damage.");
             }
 
-            if (techniqueCooldownTurns < 0)
+            if (techniqueCooldownTurns <= 0)
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(techniqueCooldownTurns),
-                    "Technique cooldown cannot be negative.");
-            }
-
-            if (float.IsNaN(markDamageMultiplier) ||
-                float.IsInfinity(markDamageMultiplier) ||
-                markDamageMultiplier <= 1f)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(markDamageMultiplier),
-                    "Mark multiplier must be a finite value greater than one.");
+                    "Technique cooldown must be at least one turn.");
             }
 
             RequirePositive(historyCapacity, nameof(historyCapacity));
@@ -144,9 +141,7 @@ namespace Veyra.Combat.Tutorial
             AttackDamage = attackDamage;
             TechniqueDamage = techniqueDamage;
             EnemyAttackDamage = enemyAttackDamage;
-            GuardDamageReduction = guardDamageReduction;
             TechniqueCooldownTurns = techniqueCooldownTurns;
-            MarkDamageMultiplier = markDamageMultiplier;
             this.historyCapacity = historyCapacity;
             this.repeatedPatternLength = repeatedPatternLength;
             completedPlayerActionsView = completedPlayerActions.AsReadOnly();
@@ -164,11 +159,7 @@ namespace Veyra.Combat.Tutorial
 
         public int EnemyAttackDamage { get; }
 
-        public int GuardDamageReduction { get; }
-
         public int TechniqueCooldownTurns { get; }
-
-        public float MarkDamageMultiplier { get; }
 
         public int HeroHp { get; private set; }
 
@@ -177,8 +168,6 @@ namespace Veyra.Combat.Tutorial
         public int TechniqueCooldownRemaining { get; private set; }
 
         public bool IsGuardPrepared { get; private set; }
-
-        public bool IsMarkPrepared { get; private set; }
 
         public BattleOutcome Outcome { get; private set; }
 
@@ -222,7 +211,6 @@ namespace Veyra.Combat.Tutorial
             EnemyHp = EnemyMaxHp;
             TechniqueCooldownRemaining = 0;
             IsGuardPrepared = false;
-            IsMarkPrepared = false;
             Outcome = BattleOutcome.Ongoing;
             completedPlayerActions.Clear();
         }
@@ -237,11 +225,12 @@ namespace Veyra.Combat.Tutorial
             switch (action)
             {
                 case BattleAction.Attack:
-                case BattleAction.Guard:
-                case BattleAction.Mark:
+                case BattleAction.Analyze:
                     return true;
                 case BattleAction.Technique:
                     return TechniqueCooldownRemaining == 0;
+                case BattleAction.Guard:
+                    return !IsGuardPrepared;
                 default:
                     return false;
             }
@@ -264,23 +253,29 @@ namespace Veyra.Combat.Tutorial
                 return BattleActionResult.Rejected(action, Outcome, TechniqueCooldownReason);
             }
 
+            if (action == BattleAction.Guard && IsGuardPrepared)
+            {
+                return BattleActionResult.Rejected(action, Outcome, GuardAlreadyPreparedReason);
+            }
+
+            if (action == BattleAction.Analyze)
+            {
+                return BattleActionResult.Completed(action, 0, false, false, Outcome);
+            }
+
             int damageDealt = 0;
-            bool consumedMark = false;
 
             switch (action)
             {
                 case BattleAction.Attack:
-                    damageDealt = DamageEnemy(AttackDamage, out consumedMark);
+                    damageDealt = DamageEnemy(AttackDamage);
                     break;
                 case BattleAction.Technique:
-                    damageDealt = DamageEnemy(TechniqueDamage, out consumedMark);
+                    damageDealt = DamageEnemy(TechniqueDamage);
                     TechniqueCooldownRemaining = TechniqueCooldownTurns;
                     break;
                 case BattleAction.Guard:
                     IsGuardPrepared = true;
-                    break;
-                case BattleAction.Mark:
-                    IsMarkPrepared = true;
                     break;
             }
 
@@ -292,12 +287,7 @@ namespace Veyra.Combat.Tutorial
             RecordCompletedPlayerAction(action);
             UpdateOutcome();
 
-            return BattleActionResult.Completed(
-                action,
-                damageDealt,
-                consumedMark,
-                false,
-                Outcome);
+            return BattleActionResult.Completed(action, damageDealt, true, false, Outcome);
         }
 
         public BattleActionResult ResolveEnemyAttack()
@@ -307,10 +297,8 @@ namespace Veyra.Combat.Tutorial
                 return BattleActionResult.Rejected(BattleAction.Attack, Outcome, BattleFinishedReason);
             }
 
-            bool reducedByGuard = IsGuardPrepared;
-            int requestedDamage = reducedByGuard
-                ? EnemyAttackDamage - GuardDamageReduction
-                : EnemyAttackDamage;
+            bool blockedByGuard = IsGuardPrepared;
+            int requestedDamage = blockedByGuard ? 0 : EnemyAttackDamage;
 
             IsGuardPrepared = false;
             int previousHp = HeroHp;
@@ -321,8 +309,8 @@ namespace Veyra.Combat.Tutorial
             return BattleActionResult.Completed(
                 BattleAction.Attack,
                 damageDealt,
-                false,
-                reducedByGuard,
+                true,
+                blockedByGuard,
                 Outcome);
         }
 
@@ -338,23 +326,11 @@ namespace Veyra.Combat.Tutorial
             return true;
         }
 
-        private int DamageEnemy(int baseDamage, out bool consumedMark)
+        private int DamageEnemy(int requestedDamage)
         {
-            consumedMark = IsMarkPrepared;
-            int requestedDamage = consumedMark
-                ? ScaleMarkedDamage(baseDamage)
-                : baseDamage;
-
-            IsMarkPrepared = false;
             int previousHp = EnemyHp;
             EnemyHp = Math.Max(0, EnemyHp - requestedDamage);
             return previousHp - EnemyHp;
-        }
-
-        private int ScaleMarkedDamage(int baseDamage)
-        {
-            double scaledDamage = Math.Ceiling(baseDamage * (double)MarkDamageMultiplier);
-            return scaledDamage >= int.MaxValue ? int.MaxValue : (int)scaledDamage;
         }
 
         private void RecordCompletedPlayerAction(BattleAction action)
@@ -384,7 +360,7 @@ namespace Veyra.Combat.Tutorial
             return action == BattleAction.Attack ||
                    action == BattleAction.Technique ||
                    action == BattleAction.Guard ||
-                   action == BattleAction.Mark;
+                   action == BattleAction.Analyze;
         }
 
         private static void RequirePositive(int value, string parameterName)

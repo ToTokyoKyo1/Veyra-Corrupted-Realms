@@ -23,9 +23,12 @@ namespace Veyra.Editor
             "attackButton",
             "guardButton",
             "techniqueButton",
-            "markButton",
+            "analyzeButton",
             "techniqueButtonLabel",
             "attackHighlight",
+            "guardHighlight",
+            "techniqueHighlight",
+            "analyzeHighlight",
             "combatMessage",
             "intentText",
             "statusText",
@@ -45,12 +48,17 @@ namespace Veyra.Editor
             "heroTechniqueProjectile",
             "enemyProjectile",
             "guardVisual",
-            "markVisual",
             "tutorialOverlay",
             "tutorialInputBlocker",
             "tutorialStepText",
             "tutorialBodyText",
             "tutorialNextButton",
+            "analyzePanel",
+            "analyzeNameText",
+            "analyzeRaceText",
+            "analyzeCorruptionText",
+            "analyzeMoodText",
+            "analyzeCloseButton",
             "outcomeOverlay",
             "outcomeText",
             "outcomeMenuButton",
@@ -97,14 +105,14 @@ namespace Veyra.Editor
                 Require(state.EnemyHp == 80, "Gli HP nemici attesi erano 80, trovati " + state.EnemyHp + ".");
             });
 
-            RunAssertion(errors, "Contrattacco nemico 100 → 88", () =>
+            RunAssertion(errors, "Contrattacco nemico 100 → 75", () =>
             {
                 TutorialBattleState state = new TutorialBattleState();
                 BattleActionResult result = state.ResolveEnemyAttack();
 
                 Require(result.Accepted, "Il contrattacco nemico è stato rifiutato.");
-                Require(result.DamageDealt == 12, "Il contrattacco non infligge 12 danni.");
-                Require(state.HeroHp == 88, "Gli HP eroe attesi erano 88, trovati " + state.HeroHp + ".");
+                Require(result.DamageDealt == 25, "Il contrattacco non infligge 25 danni.");
+                Require(state.HeroHp == 75, "Gli HP eroe attesi erano 75, trovati " + state.HeroHp + ".");
             });
 
             RunAssertion(errors, "Clamp HP e Vittoria", () =>
@@ -138,34 +146,39 @@ namespace Veyra.Editor
                 int historyCount = state.CompletedPlayerActions.Count;
 
                 BattleActionResult latePlayerAction = state.ResolvePlayerAction(BattleAction.Guard);
+                BattleActionResult lateAnalyze = state.ResolvePlayerAction(BattleAction.Analyze);
                 BattleActionResult lateEnemyAction = state.ResolveEnemyAttack();
 
                 Require(lethal.Outcome == BattleOutcome.Victory, "Lo scenario non ha raggiunto Vittoria.");
                 Require(!latePlayerAction.Accepted, "Un'azione giocatore è stata accettata dopo la Vittoria.");
+                Require(!lateAnalyze.Accepted, "Analizza è stato accettato dopo la Vittoria.");
                 Require(!lateEnemyAction.Accepted, "Un'azione nemica è stata accettata dopo la Vittoria.");
                 Require(!string.IsNullOrEmpty(latePlayerAction.RejectionReason), "Il rifiuto non espone una motivazione.");
                 Require(state.HeroHp == heroHp && state.EnemyHp == enemyHp, "Gli HP cambiano dopo la fine dello scontro.");
                 Require(state.CompletedPlayerActions.Count == historyCount, "La cronologia cambia dopo la fine dello scontro.");
             });
 
-            RunAssertion(errors, "Guardia non annulla il danno ed è consumata", () =>
+            RunAssertion(errors, "Guardia annulla un solo attacco ed è consumata", () =>
             {
-                TutorialBattleState state = new TutorialBattleState(
-                    enemyAttackDamage: 12,
-                    guardDamageReduction: 11);
+                TutorialBattleState state = new TutorialBattleState(enemyAttackDamage: 12);
 
                 BattleActionResult guard = state.ResolvePlayerAction(BattleAction.Guard);
+                int historyAfterGuard = state.CompletedPlayerActions.Count;
+                BattleActionResult stackedGuard = state.ResolvePlayerAction(BattleAction.Guard);
                 BattleActionResult guardedHit = state.ResolveEnemyAttack();
                 BattleActionResult followingHit = state.ResolveEnemyAttack();
 
                 Require(guard.Accepted && state.CompletedPlayerActions[0] == BattleAction.Guard,
                     "La Guardia non è stata completata o registrata.");
-                Require(guardedHit.Accepted && guardedHit.ReducedByGuard, "Il primo colpo non usa la Guardia.");
-                Require(guardedHit.DamageDealt == 1, "La Guardia deve lasciare almeno un punto di danno.");
+                Require(guard.ConsumesTurn, "La Guardia deve consumare il turno del giocatore.");
+                Require(!stackedGuard.Accepted && state.CompletedPlayerActions.Count == historyAfterGuard,
+                    "È stato possibile accumulare più Guardie.");
+                Require(guardedHit.Accepted && guardedHit.BlockedByGuard, "Il primo colpo non usa la Guardia.");
+                Require(guardedHit.DamageDealt == 0, "La Guardia deve annullare completamente il prossimo danno.");
                 Require(!state.IsGuardPrepared, "La Guardia non è stata consumata.");
-                Require(followingHit.DamageDealt == 12 && !followingHit.ReducedByGuard,
-                    "La Guardia ha ridotto più di un colpo.");
-                Require(state.HeroHp == 87, "Gli HP dopo i due colpi attesi erano 87, trovati " + state.HeroHp + ".");
+                Require(followingHit.DamageDealt == 12 && !followingHit.BlockedByGuard,
+                    "La Guardia ha bloccato più di un colpo.");
+                Require(state.HeroHp == 88, "Gli HP dopo i due colpi attesi erano 88, trovati " + state.HeroHp + ".");
             });
 
             RunAssertion(errors, "Cooldown Tecnica", () =>
@@ -176,6 +189,9 @@ namespace Veyra.Editor
                 BattleActionResult rejectedTechnique = state.ResolvePlayerAction(BattleAction.Technique);
 
                 Require(firstTechnique.Accepted, "La prima Tecnica è stata rifiutata.");
+                Require(firstTechnique.DamageDealt == 32 && state.EnemyHp == 68,
+                    "La Tecnica non infligge i 32 danni configurati.");
+                Require(firstTechnique.ConsumesTurn, "La Tecnica deve consumare il turno.");
                 Require(state.TechniqueCooldownRemaining == 2, "Il cooldown iniziale atteso era 2.");
                 Require(!rejectedTechnique.Accepted, "La Tecnica è stata accettata durante il cooldown.");
                 Require(state.CompletedPlayerActions.Count == historyAfterTechnique,
@@ -188,28 +204,90 @@ namespace Veyra.Editor
                 Require(state.CanUsePlayerAction(BattleAction.Technique), "La Tecnica non torna disponibile.");
             });
 
-            RunAssertion(errors, "Marchio: bonus e consumo", () =>
+            RunAssertion(errors, "Cooldown Tecnica sempre positivo", () =>
+            {
+                bool rejectedZeroCooldown = false;
+                try
+                {
+                    _ = new TutorialBattleState(techniqueCooldownTurns: 0);
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    rejectedZeroCooldown = true;
+                }
+
+                Require(rejectedZeroCooldown, "È stato accettato un cooldown Tecnica pari a zero.");
+            });
+
+            RunAssertion(errors, "Bilanciamento predefinito: Vittoria e Sconfitta raggiungibili", () =>
+            {
+                TutorialBattleState defeatState = new TutorialBattleState();
+                defeatState.ResolvePlayerAction(BattleAction.Attack);
+                defeatState.ResolveEnemyAttack();
+                defeatState.ResolvePlayerAction(BattleAction.Guard);
+                defeatState.ResolveEnemyAttack();
+                defeatState.ResolvePlayerAction(BattleAction.Technique);
+                defeatState.ResolveEnemyAttack();
+                defeatState.ResolvePlayerAction(BattleAction.Attack);
+                defeatState.ResolveEnemyAttack();
+                defeatState.ResolvePlayerAction(BattleAction.Attack);
+                defeatState.ResolveEnemyAttack();
+                Require(defeatState.Outcome == BattleOutcome.Defeat,
+                    "Ripetere solo Attacco dopo le azioni guidate non può produrre Sconfitta.");
+
+                TutorialBattleState victoryState = new TutorialBattleState();
+                victoryState.ResolvePlayerAction(BattleAction.Attack);
+                victoryState.ResolveEnemyAttack();
+                victoryState.ResolvePlayerAction(BattleAction.Guard);
+                victoryState.ResolveEnemyAttack();
+                victoryState.ResolvePlayerAction(BattleAction.Technique);
+                victoryState.ResolveEnemyAttack();
+                victoryState.ResolvePlayerAction(BattleAction.Guard);
+                victoryState.ResolveEnemyAttack();
+                victoryState.ResolvePlayerAction(BattleAction.Attack);
+                victoryState.ResolveEnemyAttack();
+                victoryState.ResolvePlayerAction(BattleAction.Technique);
+                Require(victoryState.Outcome == BattleOutcome.Victory,
+                    "Usare Guardia e Tecnica con criterio non può produrre Vittoria.");
+            });
+
+            RunAssertion(errors, "Analizza non consuma turno, HP o cronologia", () =>
             {
                 TutorialBattleState state = new TutorialBattleState();
-                BattleActionResult mark = state.ResolvePlayerAction(BattleAction.Mark);
-                BattleActionResult markedAttack = state.ResolvePlayerAction(BattleAction.Attack);
-                BattleActionResult normalAttack = state.ResolvePlayerAction(BattleAction.Attack);
+                state.ResolvePlayerAction(BattleAction.Technique);
+                int heroHp = state.HeroHp;
+                int enemyHp = state.EnemyHp;
+                int cooldown = state.TechniqueCooldownRemaining;
+                int historyCount = state.CompletedPlayerActions.Count;
 
-                Require(mark.Accepted && state.CompletedPlayerActions[0] == BattleAction.Mark,
-                    "Il Marchio non è stato completato o registrato.");
-                Require(markedAttack.Accepted && markedAttack.ConsumedMark, "Il primo attacco non consuma il Marchio.");
-                Require(markedAttack.DamageDealt == 30, "Il bonus Marchio atteso era 30 danni.");
-                Require(!state.IsMarkPrepared, "Il Marchio resta preparato dopo il colpo.");
-                Require(normalAttack.DamageDealt == 20 && !normalAttack.ConsumedMark,
-                    "Il Marchio potenzia più di un attacco.");
-                Require(state.EnemyHp == 50, "Gli HP nemici attesi dopo i due colpi erano 50.");
+                BattleActionResult analyze = state.ResolvePlayerAction(BattleAction.Analyze);
+
+                Require(analyze.Accepted, "Analizza è stato rifiutato.");
+                Require(!analyze.ConsumesTurn, "Analizza non deve consumare il turno del giocatore.");
+                Require(analyze.DamageDealt == 0, "Analizza non deve infliggere danni.");
+                Require(state.HeroHp == heroHp && state.EnemyHp == enemyHp,
+                    "Analizza ha modificato gli HP.");
+                Require(state.TechniqueCooldownRemaining == cooldown,
+                    "Analizza ha fatto avanzare il cooldown della Tecnica.");
+                Require(state.CompletedPlayerActions.Count == historyCount,
+                    "Analizza è entrato nella cronologia osservata dal nemico.");
+            });
+
+            RunAssertion(errors, "Corruzione limitata tra 0 e 100", () =>
+            {
+                Require(TutorialBattleController.ClampCorruptionPercent(-25) == 0,
+                    "Una corruzione negativa non viene limitata a 0.");
+                Require(TutorialBattleController.ClampCorruptionPercent(70) == 70,
+                    "Una corruzione valida viene modificata.");
+                Require(TutorialBattleController.ClampCorruptionPercent(140) == 100,
+                    "Una corruzione superiore a 100 non viene limitata a 100.");
             });
 
             RunAssertion(errors, "Cronologia completata e pattern", () =>
             {
                 TutorialBattleState state = new TutorialBattleState(
                     attackDamage: 1,
-                    techniqueDamage: 1,
+                    techniqueDamage: 2,
                     historyCapacity: 3,
                     repeatedPatternLength: 2);
 
@@ -227,7 +305,14 @@ namespace Veyra.Editor
                 Require(state.TryGetRepeatedPlayerAction(out BattleAction repeated) && repeated == BattleAction.Attack,
                     "Il pattern non restituisce l'azione Attacco.");
 
-                state.ResolvePlayerAction(BattleAction.Mark);
+                state.ResolvePlayerAction(BattleAction.Analyze);
+                Require(state.CompletedPlayerActions.Count == 3, "La cronologia supera la capacità configurata.");
+                Require(state.CompletedPlayerActions[0] == BattleAction.Guard,
+                    "Analizza ha modificato la cronologia conservata.");
+                Require(state.HasRepeatedPlayerPattern,
+                    "Analizza non deve alterare il pattern di azioni di combattimento già completate.");
+
+                state.ResolvePlayerAction(BattleAction.Technique);
                 Require(state.CompletedPlayerActions.Count == 3, "La cronologia supera la capacità configurata.");
                 Require(state.CompletedPlayerActions[0] == BattleAction.Attack,
                     "La cronologia non rimuove correttamente l'azione più vecchia.");
@@ -334,6 +419,18 @@ namespace Veyra.Editor
             GameObject tutorialOverlay = GetReference<GameObject>(controllerSerialized, "tutorialOverlay", errors);
             GameObject outcomeOverlay = GetReference<GameObject>(controllerSerialized, "outcomeOverlay", errors);
             Image tutorialInputBlocker = GetReference<Image>(controllerSerialized, "tutorialInputBlocker", errors);
+            TMP_Text tutorialStepText = GetReference<TMP_Text>(controllerSerialized, "tutorialStepText", errors);
+            Button analyzeButton = GetReference<Button>(controllerSerialized, "analyzeButton", errors);
+            GameObject attackHighlight = GetReference<GameObject>(controllerSerialized, "attackHighlight", errors);
+            GameObject guardHighlight = GetReference<GameObject>(controllerSerialized, "guardHighlight", errors);
+            GameObject techniqueHighlight = GetReference<GameObject>(controllerSerialized, "techniqueHighlight", errors);
+            GameObject analyzeHighlight = GetReference<GameObject>(controllerSerialized, "analyzeHighlight", errors);
+            GameObject analyzePanel = GetReference<GameObject>(controllerSerialized, "analyzePanel", errors);
+            TMP_Text analyzeNameText = GetReference<TMP_Text>(controllerSerialized, "analyzeNameText", errors);
+            TMP_Text analyzeRaceText = GetReference<TMP_Text>(controllerSerialized, "analyzeRaceText", errors);
+            TMP_Text analyzeCorruptionText = GetReference<TMP_Text>(controllerSerialized, "analyzeCorruptionText", errors);
+            TMP_Text analyzeMoodText = GetReference<TMP_Text>(controllerSerialized, "analyzeMoodText", errors);
+            Button analyzeCloseButton = GetReference<Button>(controllerSerialized, "analyzeCloseButton", errors);
 
             if (battleRoot != null && !IsSelfOrChild(controller.transform, battleRoot.transform))
             {
@@ -353,6 +450,24 @@ namespace Veyra.Editor
             ValidateActorAlignment(heroActor, enemyActor, battleRoot, errors);
             ValidateHealthUi(heroHealthFill, enemyHealthFill, heroHealthValue, enemyHealthValue, uiRoot, errors);
             ValidateOverlays(tutorialOverlay, outcomeOverlay, tutorialInputBlocker, uiRoot, errors);
+            ValidateActionTutorialUi(
+                analyzeButton,
+                attackHighlight,
+                guardHighlight,
+                techniqueHighlight,
+                analyzeHighlight,
+                tutorialStepText,
+                uiRoot,
+                errors);
+            ValidateAnalyzePanel(
+                analyzePanel,
+                analyzeNameText,
+                analyzeRaceText,
+                analyzeCorruptionText,
+                analyzeMoodText,
+                analyzeCloseButton,
+                uiRoot,
+                errors);
 
             SerializedProperty linkedController = navigationSerialized.FindProperty("battleController");
             if (linkedController != null && linkedController.objectReferenceValue != controller)
@@ -373,7 +488,15 @@ namespace Veyra.Editor
             ValidateIntProperty(serialized, "heroMaxHp", 100, errors);
             ValidateIntProperty(serialized, "enemyMaxHp", 100, errors);
             ValidateIntProperty(serialized, "attackDamage", 20, errors);
-            ValidateIntProperty(serialized, "enemyAttackDamage", 12, errors);
+            ValidateIntProperty(serialized, "techniqueDamage", 32, errors);
+            ValidateIntProperty(serialized, "enemyAttackDamage", 25, errors);
+            ValidateIntProperty(serialized, "techniqueCooldownTurns", 2, errors);
+            ValidateIntProperty(serialized, "enemyIntelligenceLevel", 0, errors);
+            ValidateIntProperty(serialized, "enemyCorruptionPercent", 70, errors);
+            ValidateFloatProperty(serialized, "resultReturnDelay", 2.5f, errors);
+            ValidateStringProperty(serialized, "enemyDisplayName", "Creatura Corrotta", errors);
+            ValidateStringProperty(serialized, "enemyRace", "Creatura delle Radici", errors);
+            ValidateEnumIndex(serialized, "enemyMood", 2, errors);
         }
 
         private static void ValidateActorAlignment(
@@ -501,6 +624,161 @@ namespace Veyra.Editor
             }
         }
 
+        private static void ValidateActionTutorialUi(
+            Button analyzeButton,
+            GameObject attackHighlight,
+            GameObject guardHighlight,
+            GameObject techniqueHighlight,
+            GameObject analyzeHighlight,
+            TMP_Text tutorialStepText,
+            GameObject uiRoot,
+            List<string> errors)
+        {
+            if (analyzeButton != null)
+            {
+                if (uiRoot != null && !IsSelfOrChild(analyzeButton.transform, uiRoot.transform))
+                {
+                    errors.Add("BTN_Analyze deve appartenere a TutorialUIRoot.");
+                }
+
+                if (analyzeButton.name != "BTN_Analyze")
+                {
+                    errors.Add("Il quarto comando deve chiamarsi BTN_Analyze.");
+                }
+
+                TMP_Text label = analyzeButton.GetComponentInChildren<TMP_Text>(true);
+                if (label == null || !string.Equals(label.text.Trim(), "ANALIZZA", StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add("Il quarto comando deve mostrare il testo ANALIZZA.");
+                }
+            }
+
+            ValidateActionHighlight(attackHighlight, "AttackHighlight", uiRoot, errors);
+            ValidateActionHighlight(guardHighlight, "GuardHighlight", uiRoot, errors);
+            ValidateActionHighlight(techniqueHighlight, "TechniqueHighlight", uiRoot, errors);
+            ValidateActionHighlight(analyzeHighlight, "AnalyzeHighlight", uiRoot, errors);
+
+            if (tutorialStepText != null &&
+                !string.Equals(tutorialStepText.text.Trim(), "PASSO 1 / 10", StringComparison.Ordinal))
+            {
+                errors.Add("Il tutorial persistente deve iniziare con PASSO 1 / 10.");
+            }
+
+            if (uiRoot != null)
+            {
+                TMP_Text obsoleteMarkText = uiRoot.GetComponentsInChildren<TMP_Text>(true)
+                    .FirstOrDefault(text => text.text.IndexOf("MARCHIO", StringComparison.OrdinalIgnoreCase) >= 0);
+                if (obsoleteMarkText != null)
+                {
+                    errors.Add("La UI contiene ancora il testo obsoleto MARCHIO in " + obsoleteMarkText.name + ".");
+                }
+            }
+        }
+
+        private static void ValidateActionHighlight(
+            GameObject highlight,
+            string expectedName,
+            GameObject uiRoot,
+            List<string> errors)
+        {
+            if (highlight == null)
+            {
+                return;
+            }
+
+            if (highlight.name != expectedName)
+            {
+                errors.Add("Highlight azione atteso " + expectedName + ", trovato " + highlight.name + ".");
+            }
+
+            if (uiRoot != null && !IsSelfOrChild(highlight.transform, uiRoot.transform))
+            {
+                errors.Add(expectedName + " deve appartenere a TutorialUIRoot.");
+            }
+
+            if (highlight.activeSelf)
+            {
+                errors.Add(expectedName + " deve iniziare inattivo.");
+            }
+
+            Image image = highlight.GetComponent<Image>();
+            if (image == null || image.raycastTarget)
+            {
+                errors.Add(expectedName + " deve avere un'Image che non intercetta i raycast.");
+            }
+        }
+
+        private static void ValidateAnalyzePanel(
+            GameObject analyzePanel,
+            TMP_Text nameText,
+            TMP_Text raceText,
+            TMP_Text corruptionText,
+            TMP_Text moodText,
+            Button closeButton,
+            GameObject uiRoot,
+            List<string> errors)
+        {
+            if (analyzePanel == null)
+            {
+                return;
+            }
+
+            if (uiRoot != null && !IsSelfOrChild(analyzePanel.transform, uiRoot.transform))
+            {
+                errors.Add("AnalyzePanel deve appartenere a TutorialUIRoot.");
+            }
+
+            if (analyzePanel.activeSelf)
+            {
+                errors.Add("AnalyzePanel deve essere persistente ma inizialmente inattivo.");
+            }
+
+            ValidateAnalyzeText(nameText, analyzePanel, "NOME", "Creatura Corrotta", errors);
+            ValidateAnalyzeText(raceText, analyzePanel, "RAZZA", "Creatura delle Radici", errors);
+            ValidateAnalyzeText(corruptionText, analyzePanel, "CORRUZIONE", "70%", errors);
+            ValidateAnalyzeText(moodText, analyzePanel, "STATO ATTUALE", "Arrabbiato", errors);
+
+            if (closeButton != null)
+            {
+                if (!IsSelfOrChild(closeButton.transform, analyzePanel.transform))
+                {
+                    errors.Add("Il pulsante CHIUDI deve appartenere ad AnalyzePanel.");
+                }
+
+                TMP_Text closeLabel = closeButton.GetComponentInChildren<TMP_Text>(true);
+                if (closeLabel == null ||
+                    !string.Equals(closeLabel.text.Trim(), "CHIUDI", StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add("AnalyzePanel deve contenere un pulsante CHIUDI leggibile.");
+                }
+            }
+        }
+
+        private static void ValidateAnalyzeText(
+            TMP_Text text,
+            GameObject analyzePanel,
+            string requiredLabel,
+            string requiredValue,
+            List<string> errors)
+        {
+            if (text == null)
+            {
+                return;
+            }
+
+            if (!IsSelfOrChild(text.transform, analyzePanel.transform))
+            {
+                errors.Add(text.name + " deve appartenere ad AnalyzePanel.");
+            }
+
+            if (text.text.IndexOf(requiredLabel, StringComparison.OrdinalIgnoreCase) < 0 ||
+                text.text.IndexOf(requiredValue, StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                errors.Add(
+                    text.name + " deve mostrare " + requiredLabel + " e il valore iniziale " + requiredValue + ".");
+            }
+        }
+
         private static GameObject RequireUniqueRoot(
             IEnumerable<GameObject> roots,
             string rootName,
@@ -613,6 +891,69 @@ namespace Veyra.Editor
                 errors.Add(
                     serialized.targetObject.GetType().Name + "." + propertyName +
                     " deve valere " + expected + ", trovato " + property.intValue + ".");
+            }
+        }
+
+        private static void ValidateStringProperty(
+            SerializedObject serialized,
+            string propertyName,
+            string expected,
+            List<string> errors)
+        {
+            SerializedProperty property = serialized.FindProperty(propertyName);
+            if (property == null || property.propertyType != SerializedPropertyType.String)
+            {
+                errors.Add(serialized.targetObject.GetType().Name + "." + propertyName + " non è disponibile.");
+                return;
+            }
+
+            if (!string.Equals(property.stringValue, expected, StringComparison.Ordinal))
+            {
+                errors.Add(
+                    serialized.targetObject.GetType().Name + "." + propertyName +
+                    " deve valere '" + expected + "', trovato '" + property.stringValue + "'.");
+            }
+        }
+
+        private static void ValidateFloatProperty(
+            SerializedObject serialized,
+            string propertyName,
+            float expected,
+            List<string> errors)
+        {
+            SerializedProperty property = serialized.FindProperty(propertyName);
+            if (property == null || property.propertyType != SerializedPropertyType.Float)
+            {
+                errors.Add(serialized.targetObject.GetType().Name + "." + propertyName + " non è disponibile.");
+                return;
+            }
+
+            if (!Mathf.Approximately(property.floatValue, expected))
+            {
+                errors.Add(
+                    serialized.targetObject.GetType().Name + "." + propertyName +
+                    " deve valere " + expected + ", trovato " + property.floatValue + ".");
+            }
+        }
+
+        private static void ValidateEnumIndex(
+            SerializedObject serialized,
+            string propertyName,
+            int expectedIndex,
+            List<string> errors)
+        {
+            SerializedProperty property = serialized.FindProperty(propertyName);
+            if (property == null || property.propertyType != SerializedPropertyType.Enum)
+            {
+                errors.Add(serialized.targetObject.GetType().Name + "." + propertyName + " non è disponibile.");
+                return;
+            }
+
+            if (property.enumValueIndex != expectedIndex)
+            {
+                errors.Add(
+                    serialized.targetObject.GetType().Name + "." + propertyName +
+                    " deve usare il terzo valore enum (Arrabbiato).");
             }
         }
 
