@@ -48,7 +48,8 @@ Assets/_Veyra/
 |   `-- Runtime/
 |       |-- AI/
 |       |-- Combat/
-|       |   `-- Preview/
+|       |   |-- Preview/
+|       |   `-- Tutorial/
 |       |-- Core/
 |       |-- Data/
 |       `-- UI/
@@ -123,3 +124,11 @@ Phase 2 adds `SCN_MainMenu` and the draft shell `SCN_W01_L01_Tutorial`. The buil
 Use **Tools > Veyra > Phase 02 > Create Main Menu And Battle Preview** to create missing persistent assets. Use **Validate Phase 02** for Edit Mode checks and **Validate Phase 02 With Play Mode** for the complete menu/settings/four-effects/return flow. Existing Phase 2 scenes and prefabs are preserved instead of overwritten.
 
 See `Docs/PHASE_02_MENU_AND_BATTLE_PREVIEW.md` for scene hierarchies, palette, PlayerPrefs keys, placeholder assets, validation, and the boundary between this visual preview and the future Phase 3 combat system.
+
+## Phase 03 first battle tutorial
+
+Phase 3 turns `SCN_W01_L01_Tutorial` into the first playable one-versus-one battle. The scene contains persistent HP bars, tutorial and outcome overlays, aligned Hero01/Enemy01 visuals, four commands, and pre-instantiated effects. Runtime code never creates visual hierarchy objects.
+
+Use **Tools > Veyra > Tutorial > Create First Battle Tutorial** to author or refresh the owned tutorial roots, then use **Validate First Battle Tutorial** for deterministic model and scene checks.
+
+See `Docs/PHASE_03_FIRST_BATTLE_TUTORIAL.md` for the combat rules, tutorial sequence, authoring command, and verification flow.

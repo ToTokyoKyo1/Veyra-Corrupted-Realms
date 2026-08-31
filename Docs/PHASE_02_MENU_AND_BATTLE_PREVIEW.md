@@ -1,5 +1,7 @@
 # Phase 02 — Menu e anteprima del combattimento
 
+> Nota storica: la Fase 3 sostituisce la shell di `SCN_W01_L01_Tutorial` con il primo combattimento giocabile. Per lo stato corrente vedere `Docs/PHASE_03_FIRST_BATTLE_TUTORIAL.md`.
+
 La Fase 2 aggiunge un flusso persistente e verificabile `Menu → Tutorial Draft → Menu`. Le due scene sono completamente authorate e salvate prima del Play Mode; il runtime modifica soltanto stato, testo, colore, trasformazioni e scena attiva.
 
 ## Scene e gerarchie
@@ -125,8 +127,8 @@ Se Unity non espone il font integrato necessario, la generazione UI si arresta s
 7. Tornare al menu e controllare la Console per errori, Missing Script o Missing Reference.
 8. Entrare e uscire dal Play Mode e confermare che le gerarchie persistenti non cambino.
 
-## Limite della battle preview
+## Limite storico della battle preview
 
-La scena tutorial è una shell della futura Fase 3. I valori `Vita 100/100`, `Corruzione 100/100` e `Focus 0/3` sono solo presentazione. Non esistono danni, costi, formule, turni, IA, vittoria, sconfitta o purificazione. Le coroutine muovono effetti preesistenti e mostrano feedback, senza fisica e senza attacco continuo.
+Nella versione originaria della Fase 2 la scena tutorial era soltanto una shell: i valori `Vita 100/100`, `Corruzione 100/100` e `Focus 0/3` erano presentazione e non esistevano ancora danni, turni o esiti. Le coroutine muovevano effetti preesistenti senza modificare lo stato di combattimento.
 
-La Fase 3 potrà trasformare questa shell in un vero tutorial e introdurre le regole del combattimento a turni. Nessuna parte di quel sistema è implementata qui.
+La Fase 3 ora migra questa shell tramite un tool Editor dedicato, mantenendo separata la documentazione storica della preview.
