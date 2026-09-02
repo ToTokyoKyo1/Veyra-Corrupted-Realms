@@ -1,0 +1,1073 @@
+fileFormatVersion: 2
+guid: 7a136e96f3ded9841ad6033fbb0b5fdc
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: -2458437407556411501
+    second: SPR_Hero01_Technique_0
+  - first:
+      213: 2886080010921762526
+    second: SPR_Hero01_Technique_1
+  - first:
+      213: 9085693247242030627
+    second: SPR_Hero01_Technique_2
+  - first:
+      213: -1501510415024428362
+    second: SPR_Hero01_Technique_3
+  - first:
+      213: -2827948458705181806
+    second: SPR_Hero01_Technique_4
+  - first:
+      213: -1985653115650569222
+    second: SPR_Hero01_Technique_5
+  - first:
+      213: 6783919858438327195
+    second: SPR_Hero01_Technique_6
+  - first:
+      213: 9220416202448740939
+    second: SPR_Hero01_Technique_7
+  - first:
+      213: 8544884395988390280
+    second: SPR_Hero01_Technique_8
+  - first:
+      213: 4116679581550772526
+    second: SPR_Hero01_Technique_9
+  - first:
+      213: -8796108928332165169
+    second: SPR_Hero01_Technique_10
+  - first:
+      213: 2846209442206245829
+    second: SPR_Hero01_Technique_11
+  - first:
+      213: 7332040865776791149
+    second: SPR_Hero01_Technique_12
+  - first:
+      213: 6029168590218765267
+    second: SPR_Hero01_Technique_13
+  - first:
+      213: 6803956716494353271
+    second: SPR_Hero01_Technique_14
+  - first:
+      213: -8841487299729105104
+    second: SPR_Hero01_Technique_15
+  - first:
+      213: 2298822955671505855
+    second: SPR_Hero01_Technique_16
+  - first:
+      213: 593020267760015099
+    second: SPR_Hero01_Technique_17
+  - first:
+      213: 8372910089553308620
+    second: SPR_Hero01_Technique_18
+  - first:
+      213: -4355568404081928142
+    second: SPR_Hero01_Technique_19
+  - first:
+      213: 3996602659358081690
+    second: SPR_Hero01_Technique_20
+  - first:
+      213: -2463763759775532287
+    second: SPR_Hero01_Technique_21
+  - first:
+      213: 3667616086973215334
+    second: SPR_Hero01_Technique_22
+  - first:
+      213: 693055475143186655
+    second: SPR_Hero01_Technique_23
+  - first:
+      213: 8282141407225738497
+    second: SPR_Hero01_Technique_24
+  - first:
+      213: -2873487700792323523
+    second: SPR_Hero01_Technique_25
+  - first:
+      213: 814585900793071155
+    second: SPR_Hero01_Technique_26
+  - first:
+      213: -3962402915856270663
+    second: SPR_Hero01_Technique_27
+  - first:
+      213: 6818436340531024469
+    second: SPR_Hero01_Technique_28
+  - first:
+      213: 8944223861154183600
+    second: SPR_Hero01_Technique_29
+  - first:
+      213: 3279684416594267499
+    second: SPR_Hero01_Technique_30
+  - first:
+      213: 7668109689898424130
+    second: SPR_Hero01_Technique_31
+  - first:
+      213: -2010224213322565251
+    second: SPR_Hero01_Technique_32
+  - first:
+      213: -2254305287218878240
+    second: SPR_Hero01_Technique_33
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 0
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 32
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 0
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Android
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: hero_technique_000
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 496
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 46bad1edd5c09c84ea574c4f14b026f2
+      internalID: -1870890722
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_001
+      rect:
+        serializedVersion: 2
+        x: 126
+        y: 496
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 0dd24a31660c18d49af85a0901c77b7b
+      internalID: -1754675077
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_002
+      rect:
+        serializedVersion: 2
+        x: 252
+        y: 496
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 83a1a9d9f360c674f83891675b2bed9d
+      internalID: 1385429137
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_003
+      rect:
+        serializedVersion: 2
+        x: 378
+        y: 496
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 5213e0e6421234e4c8a064edb6e6d9a7
+      internalID: 1634347202
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_004
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 434
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: fe2349b2b747b9842b0531c6ff684390
+      internalID: 2076452413
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_005
+      rect:
+        serializedVersion: 2
+        x: 126
+        y: 434
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 6e857e9180218ff4790b5bd7cb33b94a
+      internalID: 1656762009
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_006
+      rect:
+        serializedVersion: 2
+        x: 252
+        y: 434
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: bfdcab6f6a298894f9bf72eb4b9b3b3a
+      internalID: 327488934
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_007
+      rect:
+        serializedVersion: 2
+        x: 378
+        y: 434
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 0883fd45b5b778142a4db4b6245bc3d8
+      internalID: 2040187867
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_008
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 372
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 7a772cc269c734745bcacc3fd6361b97
+      internalID: 1993148129
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_009
+      rect:
+        serializedVersion: 2
+        x: 126
+        y: 372
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 7ec06fdca7825774396a420ccae30dbd
+      internalID: -461762710
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_010
+      rect:
+        serializedVersion: 2
+        x: 252
+        y: 372
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: e26310129538e3545a31259584c5d96b
+      internalID: -214712602
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_011
+      rect:
+        serializedVersion: 2
+        x: 378
+        y: 372
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 9068f3f327503ac40a45597a79bc4867
+      internalID: 1432659880
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_012
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 310
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 0593ee49851c3ed43a344b428ae35158
+      internalID: 1334694823
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_013
+      rect:
+        serializedVersion: 2
+        x: 126
+        y: 310
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 14f2ace4dcd8fa04ca180059045edd57
+      internalID: -1081764612
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_014
+      rect:
+        serializedVersion: 2
+        x: 252
+        y: 310
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c0f6942d7729c53439bb9ee3d1063c5e
+      internalID: 2121913041
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_015
+      rect:
+        serializedVersion: 2
+        x: 378
+        y: 310
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 838a3e0370fb34445a7b98c904eaba77
+      internalID: 1682333118
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_016
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 248
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 964550cb2248cdb419542feca8ac73c9
+      internalID: 278147160
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_017
+      rect:
+        serializedVersion: 2
+        x: 126
+        y: 248
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 2cd056c615631a544a6a75a1dc4ddb3d
+      internalID: -338227614
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_018
+      rect:
+        serializedVersion: 2
+        x: 252
+        y: 248
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 69314bfaf49af514584f1b9425aaa5f1
+      internalID: -667417622
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_019
+      rect:
+        serializedVersion: 2
+        x: 378
+        y: 248
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 84e578579c7374f4bb38ecefcb820952
+      internalID: 967789154
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_020
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 186
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 6cb084b9967e7844baa915524e05b262
+      internalID: -1938081228
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_021
+      rect:
+        serializedVersion: 2
+        x: 126
+        y: 186
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 1d35ff19b148914498a1a080960ea0bb
+      internalID: 2022310642
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_022
+      rect:
+        serializedVersion: 2
+        x: 252
+        y: 186
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: b07127e8784a2f94a991004e29959377
+      internalID: -1799717288
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_023
+      rect:
+        serializedVersion: 2
+        x: 378
+        y: 186
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 68f4127d6c470c2459299ee356b9da0f
+      internalID: -1925428420
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_024
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 124
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 47a2a704f04b6e141872a4bcb1bfe809
+      internalID: 680242189
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_025
+      rect:
+        serializedVersion: 2
+        x: 126
+        y: 124
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: dbe81a4decc69ec4ab272267b939a7fa
+      internalID: 849720710
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_026
+      rect:
+        serializedVersion: 2
+        x: 252
+        y: 124
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 5b01e5bd9719c3745826eb6c9c7f5ebd
+      internalID: 1344079488
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_027
+      rect:
+        serializedVersion: 2
+        x: 378
+        y: 124
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 0e53e9a6f8c14a74db4ff675881ba11b
+      internalID: -1968481010
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_028
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 62
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 3981e226826746744acfa0e47bd6fd0c
+      internalID: -1050488004
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_029
+      rect:
+        serializedVersion: 2
+        x: 126
+        y: 62
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 22f2a6adfcdfafd418d745ee08d6089e
+      internalID: 1234713520
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_030
+      rect:
+        serializedVersion: 2
+        x: 252
+        y: 62
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 823d96ae0eaa32c47a6bc4c8597b312f
+      internalID: 237010870
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_031
+      rect:
+        serializedVersion: 2
+        x: 378
+        y: 62
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 89ae6b5c6921ee54a90ab7a46fc82b5c
+      internalID: 2036671146
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_032
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 0
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 967f56778dec8d14cb58d57483287d79
+      internalID: 1249701673
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_033
+      rect:
+        serializedVersion: 2
+        x: 126
+        y: 0
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 86fe3a27a3cdc4349b7fe656ef7ee66c
+      internalID: -758799703
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_034
+      rect:
+        serializedVersion: 2
+        x: 252
+        y: 0
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c528fba972f531342b0375a0a84d394d
+      internalID: 1285839891
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: hero_technique_035
+      rect:
+        serializedVersion: 2
+        x: 378
+        y: 0
+        width: 126
+        height: 62
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 65537e5908013764ea8e657c72655fb4
+      internalID: 756804591
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: 402981fcc01a50940a9982060f701d60
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      hero_technique_000: -1870890722
+      hero_technique_001: -1754675077
+      hero_technique_002: 1385429137
+      hero_technique_003: 1634347202
+      hero_technique_004: 2076452413
+      hero_technique_005: 1656762009
+      hero_technique_006: 327488934
+      hero_technique_007: 2040187867
+      hero_technique_008: 1993148129
+      hero_technique_009: -461762710
+      hero_technique_010: -214712602
+      hero_technique_011: 1432659880
+      hero_technique_012: 1334694823
+      hero_technique_013: -1081764612
+      hero_technique_014: 2121913041
+      hero_technique_015: 1682333118
+      hero_technique_016: 278147160
+      hero_technique_017: -338227614
+      hero_technique_018: -667417622
+      hero_technique_019: 967789154
+      hero_technique_020: -1938081228
+      hero_technique_021: 2022310642
+      hero_technique_022: -1799717288
+      hero_technique_023: -1925428420
+      hero_technique_024: 680242189
+      hero_technique_025: 849720710
+      hero_technique_026: 1344079488
+      hero_technique_027: -1968481010
+      hero_technique_028: -1050488004
+      hero_technique_029: 1234713520
+      hero_technique_030: 237010870
+      hero_technique_031: 2036671146
+      hero_technique_032: 1249701673
+      hero_technique_033: -758799703
+      hero_technique_034: 1285839891
+      hero_technique_035: 756804591
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

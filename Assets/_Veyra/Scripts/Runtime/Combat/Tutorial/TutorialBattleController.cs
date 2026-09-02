@@ -3,6 +3,9 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using Veyra.Core;
+using Veyra.Combat.Tactical;
+using Veyra.Progression;
+using Veyra.UI.Battle;
 
 namespace Veyra.Combat.Tutorial
 {
@@ -11,6 +14,7 @@ namespace Veyra.Combat.Tutorial
         Welcome,
         Positions,
         Health,
+        AwaitingMove,
         AwaitingFirstAttack,
         EnemyCounterattack,
         AwaitingGuard,
@@ -18,6 +22,8 @@ namespace Veyra.Combat.Tutorial
         AwaitingAnalyze,
         EnemyLearning,
         VictoryGoal,
+        EnemyIncapacitated,
+        FinalChoice,
         Complete
     }
 
@@ -52,6 +58,7 @@ namespace Veyra.Combat.Tutorial
 
         [Header("HUD")]
         [SerializeField] private TMP_Text combatMessage;
+        [SerializeField] private TMP_Text phaseText;
         [SerializeField] private TMP_Text intentText;
         [SerializeField] private TMP_Text statusText;
         [SerializeField] private Image heroHealthFill;
@@ -59,11 +66,18 @@ namespace Veyra.Combat.Tutorial
         [SerializeField] private TMP_Text heroHealthValue;
         [SerializeField] private TMP_Text enemyHealthValue;
 
+        [Header("Contextual world HUD")]
+        [SerializeField] private WorldHealthBarView heroWorldHealthBar;
+        [SerializeField] private WorldHealthBarView enemyWorldHealthBar;
+
         [Header("Characters")]
         [SerializeField] private Transform heroActor;
         [SerializeField] private Transform enemyActor;
         [SerializeField] private SpriteRenderer heroVisual;
         [SerializeField] private SpriteRenderer enemyVisual;
+
+        [Header("Tactical battlefield")]
+        [SerializeField] private TacticalBattlefieldController battlefield;
         [SerializeField] private Transform heroProjectileOrigin;
         [SerializeField] private Transform heroHitTarget;
         [SerializeField] private Transform enemyProjectileOrigin;
@@ -81,6 +95,8 @@ namespace Veyra.Combat.Tutorial
         [SerializeField] private TMP_Text tutorialStepText;
         [SerializeField] private TMP_Text tutorialBodyText;
         [SerializeField] private Button tutorialNextButton;
+        [SerializeField] private Button tutorialRepeatButton;
+        [SerializeField] private Button tutorialSkipButton;
 
         [Header("Analyze panel")]
         [SerializeField] private GameObject analyzePanel;
@@ -90,20 +106,57 @@ namespace Veyra.Combat.Tutorial
         [SerializeField] private TMP_Text analyzeMoodText;
         [SerializeField] private Button analyzeCloseButton;
 
+        [Header("Final choice")]
+        [SerializeField] private GameObject finalChoicePanel;
+        [SerializeField] private TMP_Text finalChoiceTitleText;
+        [SerializeField] private Image finalChoicePortrait;
+        [SerializeField] private TMP_Text finalChoiceProfileText;
+        [SerializeField] private TMP_Text finalChoiceDialogueText;
+        [SerializeField] private Button saveButton;
+        [SerializeField] private Button killButton;
+
+        [Header("Choice confirmation")]
+        [SerializeField] private GameObject confirmationPanel;
+        [SerializeField] private TMP_Text confirmationText;
+        [SerializeField] private Button confirmationConfirmButton;
+        [SerializeField] private Button confirmationBackButton;
+
         [Header("Outcome overlay")]
         [SerializeField] private GameObject outcomeOverlay;
         [SerializeField] private TMP_Text outcomeText;
+        [SerializeField] private TMP_Text outcomeProgressText;
         [SerializeField] private Button outcomeMenuButton;
+        [SerializeField] private Button outcomeContinueButton;
+        [SerializeField] private Button outcomeRetryButton;
         [SerializeField] private TutorialBattleNavigation navigation;
 
         private const string PlayerTurnMessage = "Scegli la tua azione";
+        private const string MoralConsequencesText =
+            "\n\nSALVA: resta vivo; potrà tornare o aiutarti." +
+            "\nUCCIDI: esce dalla storia; non potrà aiutarti.";
+        private const float RecordedChoiceScale = 1.06f;
+
+        private static readonly Color RecordedSaveColor =
+            new Color(0.30f, 0.78f, 0.58f, 1f);
+        private static readonly Color RecordedKillColor =
+            new Color(0.88f, 0.38f, 0.40f, 1f);
 
         private TutorialBattleState battleState;
         private bool actionRunning;
         private bool analyzePanelOpen;
+        private bool analyzeUsedThisTurn;
         private bool waitingForTutorialAdvance;
         private bool tutorialAdvanceRequested;
+        private bool finalChoiceOpen;
+        private bool confirmationOpen;
+        private bool? pendingSaveChoice;
+        private bool isReplayBattle;
+        private bool tutorialExplanationsSkipped;
         private bool repeatedPatternMessageShown;
+        private bool rewardGrantedThisBattle;
+        private string lastTutorialStepLabel = string.Empty;
+        private string lastTutorialBody = string.Empty;
+        private bool lastTutorialCardWasBlocking;
         private Vector3 heroBasePosition;
         private Vector3 enemyBasePosition;
         private Color heroBaseColor;
@@ -112,6 +165,11 @@ namespace Veyra.Combat.Tutorial
         private Vector3 techniqueProjectileBaseScale;
         private Vector3 enemyProjectileBaseScale;
         private Vector3 guardBaseScale;
+        private ColorBlock saveButtonNeutralColors;
+        private ColorBlock killButtonNeutralColors;
+        private Vector3 saveButtonNeutralScale;
+        private Vector3 killButtonNeutralScale;
+        private HeroCombatPresentation heroCombatPresentation;
 
         public int HeroCurrentHp => battleState?.HeroHp ?? heroMaxHp;
         public int EnemyCurrentHp => battleState?.EnemyHp ?? enemyMaxHp;
@@ -119,13 +177,17 @@ namespace Veyra.Combat.Tutorial
         public TutorialStep CurrentTutorialStep { get; private set; }
         public bool IsActionRunning => actionRunning;
         public bool IsAnalyzePanelOpen => analyzePanelOpen;
+        public bool IsFinalChoiceOpen => finalChoiceOpen;
+        public bool IsConfirmationOpen => confirmationOpen;
         public bool IsTutorialComplete => CurrentTutorialStep == TutorialStep.Complete;
         public int EnemyIntelligenceLevel => enemyIntelligenceLevel;
         public int EnemyCorruptionPercent => ClampCorruptionPercent(enemyCorruptionPercent);
+        public bool AnalyzeUsedThisTurn => analyzeUsedThisTurn;
 
         private void Awake()
         {
             CapturePersistentVisualState();
+            heroCombatPresentation = HeroCombatPresentation.Ensure(heroActor);
             InitializeBattle();
         }
 
@@ -139,6 +201,21 @@ namespace Veyra.Combat.Tutorial
             techniqueCooldownTurns = Mathf.Max(1, techniqueCooldownTurns);
             enemyCorruptionPercent = ClampCorruptionPercent(enemyCorruptionPercent);
             resultReturnDelay = Mathf.Max(0.1f, resultReturnDelay);
+        }
+
+        private void Update()
+        {
+            if (CurrentTutorialStep != TutorialStep.AwaitingMove || battlefield == null ||
+                !battlefield.MovementUsed || actionRunning || analyzePanelOpen)
+            {
+                return;
+            }
+
+            ShowActionPrompt(
+                TutorialStep.AwaitingFirstAttack,
+                "PASSO 6 / 18",
+                "Ottimo. Il bersaglio è ora nella portata rossa dell'ATTACCO. La TECNICA raggiunge fino a due pedane.",
+                BattleAction.Attack);
         }
 
         public void AdvanceTutorial()
@@ -160,27 +237,28 @@ namespace Veyra.Combat.Tutorial
                 case TutorialStep.Welcome:
                     CurrentTutorialStep = TutorialStep.Positions;
                     ShowBlockingTutorial(
-                        "PASSO 2 / 10",
+                        "PASSO 2 / 18",
                         "Tu controlli l'eroe a sinistra. Il tuo avversario è la creatura corrotta a destra.");
                     break;
                 case TutorialStep.Positions:
                     CurrentTutorialStep = TutorialStep.Health;
                     ShowBlockingTutorial(
-                        "PASSO 3 / 10",
-                        "Le barre mostrano i punti vita, o HP. Se i tuoi HP raggiungono zero, perdi.");
+                        "PASSO 3 / 18",
+                        "Le barre mostrano gli HP. A zero, un nemico è incapacitato; se i tuoi HP arrivano a zero, perdi.");
                     break;
                 case TutorialStep.Health:
-                    ShowActionPrompt(
-                        TutorialStep.AwaitingFirstAttack,
-                        "PASSO 4 / 10",
-                        "Premi ATTACCO per colpire il nemico. Ogni attacco riduce gli HP del bersaglio.",
-                        BattleAction.Attack);
+                    ShowMovePrompt();
                     break;
             }
         }
 
         public void PreviewAttack()
         {
+            if (battlefield != null && !battlefield.CanUseOffensiveAction(1, enemyActor))
+            {
+                combatMessage.text = "Bersaglio fuori portata · usa MUOVI";
+                return;
+            }
             BeginPlayerAction(BattleAction.Attack);
         }
 
@@ -191,13 +269,48 @@ namespace Veyra.Combat.Tutorial
 
         public void PreviewTechnique()
         {
+            if (battlefield != null && !battlefield.CanUseOffensiveAction(2, enemyActor))
+            {
+                combatMessage.text = "Bersaglio fuori portata della Tecnica";
+                return;
+            }
             BeginPlayerAction(BattleAction.Technique);
+        }
+
+        public void BeginTacticalMove()
+        {
+            if (battlefield != null &&
+                (IsTutorialComplete || CurrentTutorialStep == TutorialStep.AwaitingMove ||
+                 CurrentTutorialStep == TutorialStep.AwaitingFirstAttack))
+            {
+                battlefield.ToggleMoveMode();
+            }
+        }
+
+        public void EndTacticalTurn()
+        {
+            if (battlefield == null || !IsTutorialComplete || actionRunning ||
+                !battleState.PassPlayerTurn())
+            {
+                return;
+            }
+
+            actionRunning = true;
+            SetAllActionButtons(false);
+            StartCoroutine(ResolvePassedTurn());
         }
 
         public void PreviewAnalyze()
         {
             if (actionRunning || analyzePanelOpen || battleState == null || battleState.IsFinished)
             {
+                return;
+            }
+
+            if (analyzeUsedThisTurn)
+            {
+                combatMessage.text = "ANALIZZA GIÀ USATO · DISPONIBILE AL PROSSIMO TURNO";
+                RefreshActionButtons();
                 return;
             }
 
@@ -215,6 +328,9 @@ namespace Veyra.Combat.Tutorial
                 return;
             }
 
+            CampaignProgressStore.TryRecordPlayerAction(BattleAction.Analyze.ToString());
+            analyzeUsedThisTurn = true;
+
             tutorialOverlay.SetActive(false);
             SetAllHighlights(false);
             SetAllActionButtons(false);
@@ -222,7 +338,10 @@ namespace Veyra.Combat.Tutorial
             analyzeCloseButton.interactable = true;
             analyzePanelOpen = true;
             analyzePanel.SetActive(true);
-            combatMessage.text = "Informazioni sul nemico";
+            SetPhase("ANALIZZA · DOSSIER NEMICO");
+            combatMessage.text = battleState.IsEnemyExposed
+                ? "VISTA DELLA CORRUZIONE: ESPOSTO applicato · prossimo danno +25%"
+                : "Informazioni sul nemico";
         }
 
         public void CloseAnalyzePanel()
@@ -236,6 +355,7 @@ namespace Veyra.Combat.Tutorial
             analyzeCloseButton.interactable = false;
             analyzePanel.SetActive(false);
             analyzePanelOpen = false;
+            SetPhase("TUO TURNO · SCEGLI UN'AZIONE");
 
             if (completesGuidedAnalyze)
             {
@@ -245,6 +365,104 @@ namespace Veyra.Combat.Tutorial
 
             combatMessage.text = "Analisi completata: nessun turno consumato";
             RefreshActionButtons();
+        }
+
+        public void RepeatCurrentExplanation()
+        {
+            if (actionRunning || finalChoiceOpen || confirmationOpen ||
+                string.IsNullOrWhiteSpace(lastTutorialBody))
+            {
+                return;
+            }
+
+            tutorialStepText.text = lastTutorialStepLabel;
+            tutorialBodyText.text = lastTutorialBody;
+            tutorialInputBlocker.raycastTarget = lastTutorialCardWasBlocking;
+            tutorialNextButton.gameObject.SetActive(lastTutorialCardWasBlocking);
+            tutorialNextButton.interactable = true;
+            tutorialOverlay.SetActive(true);
+        }
+
+        public void SkipTutorialExplanations()
+        {
+            if (!isReplayBattle || analyzePanelOpen || finalChoiceOpen ||
+                confirmationOpen || battleState == null || battleState.IsFinished)
+            {
+                return;
+            }
+
+            tutorialExplanationsSkipped = true;
+            waitingForTutorialAdvance = false;
+            tutorialAdvanceRequested = true;
+            CurrentTutorialStep = TutorialStep.Complete;
+            tutorialOverlay.SetActive(false);
+            SetAllHighlights(false);
+            if (!actionRunning)
+            {
+                SetPhase("TUO TURNO · SCEGLI UN'AZIONE");
+                combatMessage.text = PlayerTurnMessage;
+                RefreshActionButtons();
+            }
+        }
+
+        public void ChooseSave()
+        {
+            OpenFinalConfirmation(true);
+        }
+
+        public void ChooseKill()
+        {
+            OpenFinalConfirmation(false);
+        }
+
+        public void ConfirmFinalChoice()
+        {
+            if (!confirmationOpen || !pendingSaveChoice.HasValue || battleState == null ||
+                battleState.Outcome != BattleOutcome.Victory)
+            {
+                return;
+            }
+
+            bool save = pendingSaveChoice.Value;
+            EncounterResolution resolution = save
+                ? EncounterResolution.Saved
+                : EncounterResolution.Killed;
+            bool hadPreviousResolution = CampaignProgressStore.TryGetEnemyResolution(
+                CampaignContentIds.Level01Tutorial,
+                CampaignContentIds.TutorialEnemy,
+                out EncounterResolution previousResolution);
+            bool replayChoiceChanged = hadPreviousResolution && previousResolution != resolution;
+            bool rewardWasClaimed = CampaignProgressStore.IsLevelRewardClaimed(
+                CampaignContentIds.Level01Tutorial);
+            CampaignProgressStore.SetTutorialResolution(resolution);
+            rewardGrantedThisBattle = !rewardWasClaimed &&
+                                      CampaignProgressStore.IsLevelRewardClaimed(
+                                          CampaignContentIds.Level01Tutorial);
+
+            confirmationPanel.SetActive(false);
+            confirmationOpen = false;
+            finalChoicePanel.SetActive(false);
+            finalChoiceOpen = false;
+            pendingSaveChoice = null;
+            ShowOutcome(resolution, replayChoiceChanged);
+        }
+
+        public void BackFromFinalConfirmation()
+        {
+            if (!confirmationOpen)
+            {
+                return;
+            }
+
+            pendingSaveChoice = null;
+            confirmationPanel.SetActive(false);
+            confirmationOpen = false;
+            finalChoicePanel.SetActive(true);
+            finalChoiceOpen = true;
+            saveButton.interactable = true;
+            killButton.interactable = true;
+            RefreshRecordedMoralChoiceVisual();
+            SetPhase("DECIDI IL SUO DESTINO");
         }
 
         public void ReturnToMenu()
@@ -260,10 +478,16 @@ namespace Veyra.Combat.Tutorial
             StopAllCoroutines();
             actionRunning = false;
             analyzePanelOpen = false;
+            finalChoiceOpen = false;
+            confirmationOpen = false;
+            pendingSaveChoice = null;
             waitingForTutorialAdvance = false;
             tutorialAdvanceRequested = false;
             analyzePanel.SetActive(false);
+            if (finalChoicePanel != null) finalChoicePanel.SetActive(false);
+            if (confirmationPanel != null) confirmationPanel.SetActive(false);
             ResetPersistentEffects();
+            RestoreMoralChoiceButtonVisuals();
             SetAllHighlights(false);
             SetAllActionButtons(false);
         }
@@ -286,10 +510,19 @@ namespace Veyra.Combat.Tutorial
             techniqueProjectileBaseScale = heroTechniqueProjectile.transform.localScale;
             enemyProjectileBaseScale = enemyProjectile.transform.localScale;
             guardBaseScale = guardVisual.transform.localScale;
+            saveButtonNeutralColors = saveButton.colors;
+            killButtonNeutralColors = killButton.colors;
+            saveButtonNeutralScale = saveButton.transform.localScale;
+            killButtonNeutralScale = killButton.transform.localScale;
         }
 
         private void InitializeBattle()
         {
+            HeroCombatStats heroStats = HeroProgressStore.GetCombatStats();
+            heroMaxHp = heroStats.MaxHp;
+            attackDamage = heroStats.AttackDamage;
+            techniqueDamage = heroStats.TechniqueDamage;
+
             battleState = new TutorialBattleState(
                 heroMaxHp,
                 enemyMaxHp,
@@ -298,27 +531,64 @@ namespace Veyra.Combat.Tutorial
                 enemyAttackDamage,
                 techniqueCooldownTurns,
                 historyCapacity: 8,
-                repeatedPatternLength: GetObservationLengthForIntelligence());
+                repeatedPatternLength: GetObservationLengthForIntelligence(),
+                analyzeAppliesExposed: heroStats.AnalyzeAppliesExposed,
+                exposedDamagePercent: heroStats.ExposedDamagePercent);
 
             actionRunning = false;
             analyzePanelOpen = false;
+            analyzeUsedThisTurn = false;
             waitingForTutorialAdvance = false;
             tutorialAdvanceRequested = false;
             repeatedPatternMessageShown = false;
+            rewardGrantedThisBattle = false;
+            finalChoiceOpen = false;
+            confirmationOpen = false;
+            pendingSaveChoice = null;
+            isReplayBattle = CampaignProgressStore.Load().tutorialCompleted;
+            tutorialExplanationsSkipped = false;
             CurrentTutorialStep = TutorialStep.Welcome;
 
             ResetPersistentEffects();
+            RestoreMoralChoiceButtonVisuals();
             PopulateAnalyzePanel();
             analyzePanel.SetActive(false);
+            if (finalChoicePanel != null) finalChoicePanel.SetActive(false);
+            if (confirmationPanel != null) confirmationPanel.SetActive(false);
             analyzeCloseButton.interactable = true;
             UpdateHealthImmediate();
+            heroWorldHealthBar?.SetHealthSilently(battleState.HeroHp, battleState.HeroMaxHp);
+            enemyWorldHealthBar?.SetHealthSilently(battleState.EnemyHp, battleState.EnemyMaxHp);
             UpdateStatusAndCooldown();
             intentText.text = "INTENZIONE\nATTACCO IN ARRIVO";
             combatMessage.text = "Impara le basi del combattimento";
             outcomeOverlay.SetActive(false);
+            if (outcomeRetryButton != null)
+            {
+                outcomeRetryButton.gameObject.SetActive(false);
+                outcomeRetryButton.interactable = false;
+            }
             outcomeMenuButton.interactable = true;
+            if (outcomeContinueButton != null)
+            {
+                outcomeContinueButton.gameObject.SetActive(false);
+                outcomeContinueButton.interactable = false;
+            }
             SetAllHighlights(false);
-            ShowBlockingTutorial("PASSO 1 / 10", "Benvenuto nel combattimento.");
+            if (tutorialRepeatButton != null)
+            {
+                tutorialRepeatButton.gameObject.SetActive(true);
+                tutorialRepeatButton.interactable = true;
+            }
+            if (tutorialSkipButton != null)
+            {
+                tutorialSkipButton.gameObject.SetActive(isReplayBattle);
+                tutorialSkipButton.interactable = isReplayBattle;
+            }
+            SetPhase("TUTORIAL · OSSERVA");
+            ShowBlockingTutorial(
+                "PASSO 1 / 18",
+                "Benvenuto in Veyra. Imparerai movimento, portata, azioni e la scelta morale senza nascondere l'arena.");
         }
 
         private void BeginPlayerAction(BattleAction action)
@@ -344,6 +614,11 @@ namespace Veyra.Combat.Tutorial
             }
 
             actionRunning = true;
+            if (battlefield != null)
+            {
+                battlefield.CommitAction();
+            }
+            SetPhase("AZIONE DI HERO01");
             tutorialOverlay.SetActive(false);
             SetAllHighlights(false);
             SetAllActionButtons(false);
@@ -359,17 +634,13 @@ namespace Veyra.Combat.Tutorial
             {
                 case BattleAction.Attack:
                     combatMessage.text = "Hero01 attacca";
-                    yield return MoveActor(
-                        heroActor,
-                        heroBasePosition,
-                        heroBasePosition + Vector3.right * 0.72f,
-                        0.16f);
-                    yield return MoveEffect(
-                        heroBasicProjectile,
-                        heroProjectileOrigin.position,
-                        enemyHitTarget.position,
-                        0.24f);
+                    if (heroCombatPresentation != null)
+                        yield return heroCombatPresentation.PlayMelee(enemyActor, false);
                     playerResult = battleState.ResolvePlayerAction(action);
+                    enemyWorldHealthBar?.ShowDamage(
+                        enemyHpBefore,
+                        battleState.EnemyHp,
+                        battleState.EnemyMaxHp);
                     yield return Flash(enemyVisual, Color.white, 0.16f);
                     yield return AnimateHealth(
                         enemyHealthFill,
@@ -378,22 +649,16 @@ namespace Veyra.Combat.Tutorial
                         battleState.EnemyHp,
                         battleState.EnemyMaxHp,
                         0.20f);
-                    yield return MoveActor(heroActor, heroActor.localPosition, heroBasePosition, 0.16f);
                     break;
                 case BattleAction.Technique:
                     combatMessage.text = "Hero01 usa Tecnica";
-                    yield return MoveActor(
-                        heroActor,
-                        heroBasePosition,
-                        heroBasePosition + Vector3.right * 0.58f,
-                        0.16f);
-                    heroTechniqueProjectile.transform.localScale = techniqueProjectileBaseScale * 1.25f;
-                    yield return MoveEffect(
-                        heroTechniqueProjectile,
-                        heroProjectileOrigin.position,
-                        enemyHitTarget.position,
-                        0.38f);
+                    if (heroCombatPresentation != null)
+                        yield return heroCombatPresentation.PlayMelee(enemyActor, true);
                     playerResult = battleState.ResolvePlayerAction(action);
+                    enemyWorldHealthBar?.ShowDamage(
+                        enemyHpBefore,
+                        battleState.EnemyHp,
+                        battleState.EnemyMaxHp);
                     yield return Flash(enemyVisual, new Color(0.73f, 1f, 0.94f, 1f), 0.24f);
                     yield return AnimateHealth(
                         enemyHealthFill,
@@ -402,7 +667,6 @@ namespace Veyra.Combat.Tutorial
                         battleState.EnemyHp,
                         battleState.EnemyMaxHp,
                         0.22f);
-                    yield return MoveActor(heroActor, heroActor.localPosition, heroBasePosition, 0.16f);
                     break;
                 case BattleAction.Guard:
                     combatMessage.text = "Guardia preparata";
@@ -424,11 +688,20 @@ namespace Veyra.Combat.Tutorial
                 yield break;
             }
 
+            CampaignProgressStore.TryRecordPlayerAction(action.ToString());
+
             UpdateStatusAndCooldown();
 
             if (battleState.IsFinished)
             {
-                ShowOutcome();
+                if (battleState.Outcome == BattleOutcome.Victory)
+                {
+                    EnterFinalChoice();
+                }
+                else
+                {
+                    ShowOutcome();
+                }
                 yield break;
             }
 
@@ -438,11 +711,16 @@ namespace Veyra.Combat.Tutorial
             {
                 yield return WaitForTutorialCard(
                     TutorialStep.EnemyCounterattack,
-                    "PASSO 5 / 10",
+                    "PASSO 7 / 18",
                     "Ora il nemico contrattacca. Anche i suoi attacchi riducono i tuoi HP.");
             }
 
             yield return ResolveEnemyTurn();
+            if (battlefield != null && !battleState.IsFinished)
+            {
+                analyzeUsedThisTurn = false;
+                battlefield.BeginHeroTurn();
+            }
             if (battleState.IsFinished)
             {
                 ShowOutcome();
@@ -452,12 +730,21 @@ namespace Veyra.Combat.Tutorial
             ResetTransientEffects();
             UpdateStatusAndCooldown();
 
+            if (tutorialExplanationsSkipped)
+            {
+                actionRunning = false;
+                CurrentTutorialStep = TutorialStep.Complete;
+                ShowPlayerTurnMessage(repeatedPattern);
+                RefreshActionButtons();
+                yield break;
+            }
+
             if (startingStep == TutorialStep.AwaitingFirstAttack)
             {
                 FinishWithActionPrompt(
                     TutorialStep.AwaitingGuard,
-                    "PASSO 6 / 10",
-                    "Il nemico sta per attaccare di nuovo. Premi GUARDIA per parare il prossimo colpo.",
+                    "PASSO 8 / 18",
+                    "Premi GUARDIA: il prossimo attacco diretto parabile infliggerà esattamente zero danni, poi la Guardia sarà consumata.",
                     BattleAction.Guard);
                 yield break;
             }
@@ -466,8 +753,8 @@ namespace Veyra.Combat.Tutorial
             {
                 FinishWithActionPrompt(
                     TutorialStep.AwaitingTechnique,
-                    "PASSO 7 / 10",
-                    "TECNICA è la tua mossa speciale. Infligge più danni, ma deve ricaricarsi dopo l'uso.",
+                    "PASSO 10 / 18",
+                    "TECNICA è la mossa speciale: più danno, portata 2 e ricarica di " + techniqueCooldownTurns + " turni.",
                     BattleAction.Technique);
                 yield break;
             }
@@ -476,8 +763,8 @@ namespace Veyra.Combat.Tutorial
             {
                 FinishWithActionPrompt(
                     TutorialStep.AwaitingAnalyze,
-                    "PASSO 8 / 10",
-                    "Usa ANALIZZA per conoscere meglio il nemico. Puoi scoprire la sua razza, la corruzione e il suo stato emotivo.",
+                    "PASSO 12 / 18",
+                    "ANALIZZA è gratuito una volta per turno. Mostra razza, corruzione, stato emotivo e intenzione senza consumare l'azione.",
                     BattleAction.Analyze);
                 yield break;
             }
@@ -489,6 +776,7 @@ namespace Veyra.Combat.Tutorial
 
         private IEnumerator ResolveEnemyTurn()
         {
+            SetPhase("TURNO NEMICO");
             combatMessage.text = "Turno nemico";
             yield return new WaitForSecondsRealtime(0.16f);
             yield return MoveActor(
@@ -504,6 +792,10 @@ namespace Veyra.Combat.Tutorial
 
             int heroHpBefore = battleState.HeroHp;
             BattleActionResult enemyResult = battleState.ResolveEnemyAttack();
+            heroWorldHealthBar?.ShowDamage(
+                heroHpBefore,
+                battleState.HeroHp,
+                battleState.HeroMaxHp);
             if (enemyResult.BlockedByGuard)
             {
                 combatMessage.text = "PARATO";
@@ -532,18 +824,55 @@ namespace Veyra.Combat.Tutorial
             }
         }
 
+        private IEnumerator ResolvePassedTurn()
+        {
+            combatMessage.text = "Hero01 passa il turno";
+            yield return ResolveEnemyTurn();
+            if (battleState.IsFinished)
+            {
+                ShowOutcome();
+                yield break;
+            }
+
+            actionRunning = false;
+            analyzeUsedThisTurn = false;
+            battlefield.BeginHeroTurn();
+            RefreshActionButtons();
+        }
+
         private IEnumerator CompleteAnalyzeTutorial()
         {
+            if (tutorialExplanationsSkipped)
+            {
+                CurrentTutorialStep = TutorialStep.Complete;
+                SetPhase("TUO TURNO · SCEGLI UN'AZIONE");
+                combatMessage.text = PlayerTurnMessage;
+                UpdateStatusAndCooldown();
+                RefreshActionButtons();
+                yield break;
+            }
+
             yield return WaitForTutorialCard(
                 TutorialStep.EnemyLearning,
-                "PASSO 9 / 10",
-                "I nemici più evoluti osserveranno le azioni che hai già completato e impareranno come combatti.");
+                "PASSO 14 / 18",
+                "Dal terzo scontro i nemici useranno le tue azioni passate per riconoscere alcune abitudini.");
             yield return WaitForTutorialCard(
                 TutorialStep.VictoryGoal,
-                "PASSO 10 / 10",
-                "Porta gli HP del nemico a zero per vincere.");
+                "PASSO 16 / 18",
+                "Porta gli HP del nemico a zero per renderlo incapacitato.");
+
+            if (tutorialExplanationsSkipped)
+            {
+                CurrentTutorialStep = TutorialStep.Complete;
+                SetPhase("TUO TURNO · SCEGLI UN'AZIONE");
+                combatMessage.text = PlayerTurnMessage;
+                UpdateStatusAndCooldown();
+                RefreshActionButtons();
+                yield break;
+            }
 
             CurrentTutorialStep = TutorialStep.Complete;
+            SetPhase("TUO TURNO · SCEGLI UN'AZIONE");
             combatMessage.text = PlayerTurnMessage;
             UpdateStatusAndCooldown();
             RefreshActionButtons();
@@ -551,21 +880,34 @@ namespace Veyra.Combat.Tutorial
 
         private IEnumerator WaitForTutorialCard(TutorialStep step, string stepLabel, string body)
         {
+            if (tutorialExplanationsSkipped)
+            {
+                yield break;
+            }
+
             CurrentTutorialStep = step;
             waitingForTutorialAdvance = true;
             tutorialAdvanceRequested = false;
             ShowBlockingTutorial(stepLabel, body);
 
-            yield return new WaitUntil(() => tutorialAdvanceRequested);
+            yield return new WaitUntil(
+                () => tutorialAdvanceRequested || tutorialExplanationsSkipped);
 
             waitingForTutorialAdvance = false;
             tutorialAdvanceRequested = false;
             tutorialNextButton.interactable = true;
             tutorialOverlay.SetActive(false);
+            if (tutorialExplanationsSkipped)
+            {
+                CurrentTutorialStep = TutorialStep.Complete;
+            }
         }
 
         private void ShowBlockingTutorial(string stepLabel, string body)
         {
+            lastTutorialStepLabel = stepLabel;
+            lastTutorialBody = body;
+            lastTutorialCardWasBlocking = true;
             tutorialStepText.text = stepLabel;
             tutorialBodyText.text = body;
             tutorialInputBlocker.raycastTarget = true;
@@ -583,6 +925,9 @@ namespace Veyra.Combat.Tutorial
             BattleAction requiredAction)
         {
             CurrentTutorialStep = step;
+            lastTutorialStepLabel = stepLabel;
+            lastTutorialBody = body;
+            lastTutorialCardWasBlocking = false;
             tutorialStepText.text = stepLabel;
             tutorialBodyText.text = body;
             tutorialInputBlocker.raycastTarget = false;
@@ -591,7 +936,26 @@ namespace Veyra.Combat.Tutorial
             SetAllActionButtons(false);
             SetRequiredActionEnabled(requiredAction);
             SetRequiredHighlight(requiredAction);
+            SetPhase("TUO TURNO · " + GetActionDisplayName(requiredAction));
             combatMessage.text = "Premi " + GetActionDisplayName(requiredAction);
+        }
+
+        private void ShowMovePrompt()
+        {
+            CurrentTutorialStep = TutorialStep.AwaitingMove;
+            lastTutorialStepLabel = "PASSO 4 / 18";
+            lastTutorialBody =
+                "Le pedane definiscono distanza e portata. Premi MUOVI, poi scegli una delle otto pedane verdi adiacenti.";
+            lastTutorialCardWasBlocking = false;
+            tutorialStepText.text = lastTutorialStepLabel;
+            tutorialBodyText.text = lastTutorialBody;
+            tutorialInputBlocker.raycastTarget = false;
+            tutorialNextButton.gameObject.SetActive(false);
+            tutorialOverlay.SetActive(true);
+            SetAllActionButtons(false);
+            SetAllHighlights(false);
+            SetPhase("TUO TURNO · MUOVI");
+            combatMessage.text = "Premi MUOVI · poi scegli una pedana verde";
         }
 
         private void FinishWithActionPrompt(
@@ -604,7 +968,7 @@ namespace Veyra.Combat.Tutorial
             ShowActionPrompt(step, stepLabel, body, requiredAction);
         }
 
-        private void ShowOutcome()
+        private void EnterFinalChoice()
         {
             actionRunning = false;
             analyzePanelOpen = false;
@@ -614,24 +978,144 @@ namespace Veyra.Combat.Tutorial
             SetAllHighlights(false);
             SetAllActionButtons(false);
             ResetTransientEffects();
+            intentText.text = "INTENZIONE\nNESSUNA · INCAPACITATO";
+            combatMessage.text = "Il nemico non può più combattere";
+            CurrentTutorialStep = TutorialStep.EnemyIncapacitated;
+            SetPhase("DECIDI IL SUO DESTINO");
 
-            bool victory = battleState.Outcome == BattleOutcome.Victory;
-            if (victory)
+            EncounterResolution previousResolution;
+            bool hasPrevious = CampaignProgressStore.TryGetEnemyResolution(
+                CampaignContentIds.Level01Tutorial,
+                CampaignContentIds.TutorialEnemy,
+                out previousResolution);
+
+            finalChoiceTitleText.text = "PASSO 17 / 18 · NEMICO INCAPACITATO";
+            if (finalChoicePortrait != null)
             {
-                CampaignProgressStore.MarkTutorialCompleted();
+                finalChoicePortrait.sprite = enemyVisual.sprite;
+                finalChoicePortrait.preserveAspect = true;
+                finalChoicePortrait.color = Color.white;
+            }
+            finalChoiceProfileText.text =
+                enemyDisplayName.ToUpperInvariant() + "\n" +
+                "RAZZA · " + enemyRace + "\n" +
+                "CORRUZIONE · " + ClampCorruptionPercent(enemyCorruptionPercent) + "%\n" +
+                "STATO · " + GetMoodDisplayName(enemyMood);
+            string choiceContext = hasPrevious
+                ? "Esito registrato: " + GetResolutionDisplayName(previousResolution) +
+                  ". Puoi mantenerlo o cambiare la storia."
+                : "Un nemico sconfitto non è ancora morto. Ora devi decidere il suo destino.";
+            finalChoiceDialogueText.text = choiceContext + MoralConsequencesText;
+            saveButton.interactable = true;
+            killButton.interactable = true;
+            confirmationPanel.SetActive(false);
+            confirmationOpen = false;
+            pendingSaveChoice = null;
+            finalChoicePanel.SetActive(true);
+            finalChoiceOpen = true;
+            RefreshRecordedMoralChoiceVisual();
+        }
+
+        private void OpenFinalConfirmation(bool save)
+        {
+            if (!finalChoiceOpen || confirmationOpen || battleState == null ||
+                battleState.Outcome != BattleOutcome.Victory)
+            {
+                return;
             }
 
-            outcomeText.text = victory ? "VITTORIA" : "SCONFITTA";
+            pendingSaveChoice = save;
+            finalChoicePanel.SetActive(false);
+            finalChoiceOpen = false;
+            saveButton.interactable = false;
+            killButton.interactable = false;
+            RestoreMoralChoiceButtonVisuals();
+
+            EncounterResolution previousResolution;
+            bool hasPrevious = CampaignProgressStore.TryGetEnemyResolution(
+                CampaignContentIds.Level01Tutorial,
+                CampaignContentIds.TutorialEnemy,
+                out previousResolution);
+            EncounterResolution nextResolution = save
+                ? EncounterResolution.Saved
+                : EncounterResolution.Killed;
+            string changeWarning = hasPrevious && previousResolution != nextResolution
+                ? "\n\nQUESTA DECISIONE MODIFICHERÀ LA STORIA SALVATA."
+                : string.Empty;
+            confirmationText.text = "PASSO 18 / 18\n" +
+                                    (save
+                                        ? "Salvare " + enemyDisplayName + "?"
+                                        : "Uccidere " + enemyDisplayName + "?") +
+                                    changeWarning;
+            confirmationConfirmButton.interactable = true;
+            confirmationBackButton.interactable = true;
+            confirmationPanel.SetActive(true);
+            confirmationOpen = true;
+            CurrentTutorialStep = TutorialStep.FinalChoice;
+            SetPhase("CONFERMA LA DECISIONE");
+        }
+
+        private void ShowOutcome(
+            EncounterResolution resolution = EncounterResolution.None,
+            bool replayChoiceChanged = false)
+        {
+            actionRunning = false;
+            analyzePanelOpen = false;
+            finalChoiceOpen = false;
+            confirmationOpen = false;
+            pendingSaveChoice = null;
+            waitingForTutorialAdvance = false;
+            CurrentTutorialStep = TutorialStep.Complete;
+            tutorialOverlay.SetActive(false);
+            analyzePanel.SetActive(false);
+            if (finalChoicePanel != null) finalChoicePanel.SetActive(false);
+            if (confirmationPanel != null) confirmationPanel.SetActive(false);
+            RestoreMoralChoiceButtonVisuals();
+            SetAllHighlights(false);
+            SetAllActionButtons(false);
+            ResetTransientEffects();
+
+            bool victory = battleState.Outcome == BattleOutcome.Victory;
+            string outcomeLabel = resolution == EncounterResolution.Saved
+                ? "NEMICO SALVATO"
+                : resolution == EncounterResolution.Killed
+                    ? "NEMICO UCCISO"
+                    : victory ? "VITTORIA" : "SCONFITTA";
+            outcomeText.text = outcomeLabel;
             outcomeText.color = victory
                 ? new Color(0.35f, 0.84f, 0.82f, 1f)
                 : new Color(0.91f, 0.36f, 0.40f, 1f);
             combatMessage.text = victory
-                ? "La creatura corrotta è stata sconfitta"
+                ? resolution == EncounterResolution.Saved
+                    ? "La creatura corrotta è stata salvata"
+                    : "La creatura corrotta è stata uccisa"
                 : "Hero01 non può più combattere";
             intentText.text = "COMBATTIMENTO\nCONCLUSO";
+            SetPhase(victory ? "VITTORIA" : "SCONFITTA");
             outcomeMenuButton.interactable = true;
+            if (outcomeContinueButton != null)
+            {
+                outcomeContinueButton.gameObject.SetActive(victory);
+                outcomeContinueButton.interactable = victory;
+            }
+            if (outcomeRetryButton != null)
+            {
+                outcomeRetryButton.gameObject.SetActive(!victory);
+                outcomeRetryButton.interactable = !victory;
+            }
+
+            if (outcomeProgressText != null)
+            {
+                int rewardExperience = CampaignLevelCatalog.GetByNumber(1).ExperienceReward;
+                outcomeProgressText.text = victory
+                    ? (rewardGrantedThisBattle
+                        ? "+" + rewardExperience + " XP  -  LIVELLO 2 SBLOCCATO"
+                        : replayChoiceChanged
+                            ? "RICOMPENSE GIÀ OTTENUTE  -  STORIA AGGIORNATA"
+                            : "RIVINCITA COMPLETATA  -  SCELTA CONFERMATA")
+                    : "Nessun XP ottenuto";
+            }
             outcomeOverlay.SetActive(true);
-            StartCoroutine(ReturnToMenuAfterDelay());
         }
 
         private IEnumerator ReturnToMenuAfterDelay()
@@ -664,7 +1148,8 @@ namespace Veyra.Combat.Tutorial
                     return;
                 case TutorialStep.AwaitingAnalyze:
                     SetAllActionButtons(false);
-                    analyzeButton.interactable = battleState.CanUsePlayerAction(BattleAction.Analyze);
+                    analyzeButton.interactable = !analyzeUsedThisTurn &&
+                                                 battleState.CanUsePlayerAction(BattleAction.Analyze);
                     return;
             }
 
@@ -677,7 +1162,8 @@ namespace Veyra.Combat.Tutorial
             attackButton.interactable = battleState.CanUsePlayerAction(BattleAction.Attack);
             guardButton.interactable = battleState.CanUsePlayerAction(BattleAction.Guard);
             techniqueButton.interactable = battleState.CanUsePlayerAction(BattleAction.Technique);
-            analyzeButton.interactable = battleState.CanUsePlayerAction(BattleAction.Analyze);
+            analyzeButton.interactable = !analyzeUsedThisTurn &&
+                                         battleState.CanUsePlayerAction(BattleAction.Analyze);
         }
 
         private void SetAllActionButtons(bool enabled)
@@ -746,11 +1232,13 @@ namespace Veyra.Combat.Tutorial
             {
                 string turnLabel = battleState.TechniqueCooldownRemaining == 1 ? " TURNO" : " TURNI";
                 techniqueButtonLabel.text =
-                    "TECNICA\n" + battleState.TechniqueCooldownRemaining + turnLabel;
+                    "TECNICA · DANNO " + techniqueDamage + " · PORTATA 2\nRICARICA " +
+                    battleState.TechniqueCooldownRemaining + turnLabel;
             }
             else
             {
-                techniqueButtonLabel.text = "TECNICA";
+                techniqueButtonLabel.text =
+                    "TECNICA · DANNO " + techniqueDamage + " · PORTATA 2\nPRONTA";
             }
 
             statusText.text = battleState.IsGuardPrepared
@@ -772,11 +1260,15 @@ namespace Veyra.Combat.Tutorial
             analyzeRaceText.text = "RAZZA\n" + enemyRace;
             analyzeCorruptionText.text =
                 "CORRUZIONE\n" + ClampCorruptionPercent(enemyCorruptionPercent) + "%";
-            analyzeMoodText.text = "STATO ATTUALE\n" + GetMoodDisplayName(enemyMood);
+            analyzeMoodText.text = "STATO ATTUALE\n" + GetMoodDisplayName(enemyMood) +
+                                   (battleState != null && battleState.IsEnemyExposed
+                                       ? "\nESPOSTO · PROSSIMO DANNO +25%"
+                                       : string.Empty);
         }
 
         private void ShowPlayerTurnMessage(bool repeatedPattern)
         {
+            SetPhase("TUO TURNO · SCEGLI UN'AZIONE");
             if (repeatedPattern && !repeatedPatternMessageShown)
             {
                 repeatedPatternMessageShown = true;
@@ -822,6 +1314,27 @@ namespace Veyra.Combat.Tutorial
                     return "ANALIZZA";
                 default:
                     return string.Empty;
+            }
+        }
+
+        private void SetPhase(string value)
+        {
+            if (phaseText != null)
+            {
+                phaseText.text = value;
+            }
+        }
+
+        private static string GetResolutionDisplayName(EncounterResolution resolution)
+        {
+            switch (resolution)
+            {
+                case EncounterResolution.Saved:
+                    return "SALVATO";
+                case EncounterResolution.Killed:
+                    return "UCCISO";
+                default:
+                    return "NON DECISO";
             }
         }
 
@@ -942,6 +1455,60 @@ namespace Veyra.Combat.Tutorial
             enemyProjectile.transform.localScale = enemyProjectileBaseScale;
             guardVisual.transform.localScale = guardBaseScale;
             ResetTransientEffects();
+        }
+
+        private void RefreshRecordedMoralChoiceVisual()
+        {
+            RestoreMoralChoiceButtonVisuals();
+
+            if (!isReplayBattle ||
+                !CampaignProgressStore.TryGetEnemyResolution(
+                    CampaignContentIds.Level01Tutorial,
+                    CampaignContentIds.TutorialEnemy,
+                    out EncounterResolution recordedResolution))
+            {
+                return;
+            }
+
+            if (recordedResolution == EncounterResolution.Saved)
+            {
+                ApplyRecordedChoiceStyle(
+                    saveButton,
+                    saveButtonNeutralColors,
+                    saveButtonNeutralScale,
+                    RecordedSaveColor);
+            }
+            else if (recordedResolution == EncounterResolution.Killed)
+            {
+                ApplyRecordedChoiceStyle(
+                    killButton,
+                    killButtonNeutralColors,
+                    killButtonNeutralScale,
+                    RecordedKillColor);
+            }
+        }
+
+        private void RestoreMoralChoiceButtonVisuals()
+        {
+            saveButton.colors = saveButtonNeutralColors;
+            killButton.colors = killButtonNeutralColors;
+            saveButton.transform.localScale = saveButtonNeutralScale;
+            killButton.transform.localScale = killButtonNeutralScale;
+        }
+
+        private static void ApplyRecordedChoiceStyle(
+            Button button,
+            ColorBlock neutralColors,
+            Vector3 neutralScale,
+            Color recordedColor)
+        {
+            ColorBlock colors = neutralColors;
+            colors.normalColor = recordedColor;
+            colors.highlightedColor = Color.Lerp(recordedColor, Color.white, 0.18f);
+            colors.selectedColor = colors.highlightedColor;
+            colors.pressedColor = Color.Lerp(recordedColor, Color.black, 0.12f);
+            button.colors = colors;
+            button.transform.localScale = neutralScale * RecordedChoiceScale;
         }
 
         private void ResetTransientEffects()

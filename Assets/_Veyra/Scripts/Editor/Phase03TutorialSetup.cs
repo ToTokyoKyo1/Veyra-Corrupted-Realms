@@ -19,6 +19,7 @@ namespace Veyra.Editor
             try
             {
                 Phase03TutorialSceneFactory.CreateOrUpdateTutorialScene(report);
+                Phase78ExistingSceneUpgrade.UpgradeTutorialOnly();
                 AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
                 report.LogSummary();

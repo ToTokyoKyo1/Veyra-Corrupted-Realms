@@ -5,6 +5,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Veyra.Core;
+using Veyra.UI.Battle;
 
 namespace Veyra.Combat.Tutorial
 {
@@ -12,7 +13,10 @@ namespace Veyra.Combat.Tutorial
     {
         [SerializeField] private Button backButton;
         [SerializeField] private Button resultMenuButton;
+        [SerializeField] private Button continueLevelButton;
+        [SerializeField] private Button retryButton;
         [SerializeField] private TutorialBattleController battleController;
+        [SerializeField] private BattlePauseController pauseController;
 
         private bool isLoading;
 
@@ -20,21 +24,50 @@ namespace Veyra.Combat.Tutorial
 
         private void Update()
         {
-            if (!isLoading && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+            bool pausePressed = (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) ||
+                                (Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame);
+            if (!isLoading && pausePressed)
             {
-                BackToMenu();
+                if (pauseController != null) pauseController.TogglePause();
             }
         }
 
         public void BackToMenu()
         {
+            if (!isLoading && pauseController != null &&
+                battleController != null && battleController.Outcome == BattleOutcome.Ongoing)
+            {
+                pauseController.Open();
+                pauseController.RequestMainMenu();
+                return;
+            }
+
             if (!isLoading)
             {
-                StartCoroutine(LoadMenu());
+                StartCoroutine(LoadScene(SceneNames.MainMenu));
             }
         }
 
-        private IEnumerator LoadMenu()
+        public void ContinueToLevel02()
+        {
+            if (!isLoading)
+            {
+                LevelDefinition tutorial =
+                    CampaignLevelCatalog.GetById(CampaignContentIds.Level01Tutorial);
+                LevelDefinition level02 = CampaignLevelCatalog.GetById(tutorial.NextLevelId);
+                StartCoroutine(LoadScene(level02.SceneName));
+            }
+        }
+
+        public void RetryCurrentLevel()
+        {
+            if (!isLoading)
+            {
+                StartCoroutine(LoadScene(SceneManager.GetActiveScene().name));
+            }
+        }
+
+        private IEnumerator LoadScene(string sceneName)
         {
             isLoading = true;
             if (backButton != null)
@@ -47,12 +80,22 @@ namespace Veyra.Combat.Tutorial
                 resultMenuButton.interactable = false;
             }
 
+            if (continueLevelButton != null)
+            {
+                continueLevelButton.interactable = false;
+            }
+
+            if (retryButton != null)
+            {
+                retryButton.interactable = false;
+            }
+
             battleController.CancelRunningActionForSceneChange();
 
             AsyncOperation operation;
             try
             {
-                operation = SceneManager.LoadSceneAsync(SceneNames.MainMenu, LoadSceneMode.Single);
+                operation = SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Single);
             }
             catch (Exception exception)
             {
@@ -62,7 +105,7 @@ namespace Veyra.Combat.Tutorial
 
             if (operation == null)
             {
-                ShowLoadError("Unity non ha avviato il caricamento del menu.");
+                ShowLoadError("Unity non ha avviato il caricamento di " + sceneName + ".");
                 yield break;
             }
 
@@ -85,7 +128,17 @@ namespace Veyra.Combat.Tutorial
                 resultMenuButton.interactable = true;
             }
 
-            battleController.ShowExternalMessage("Ritorno al menu non riuscito: " + details);
+            if (continueLevelButton != null)
+            {
+                continueLevelButton.interactable = true;
+            }
+
+            if (retryButton != null)
+            {
+                retryButton.interactable = true;
+            }
+
+            battleController.ShowExternalMessage("Caricamento scena non riuscito: " + details);
         }
     }
 }

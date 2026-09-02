@@ -12,7 +12,6 @@ namespace Veyra.Editor
 {
     public static class Phase02MenuBattleSetup
     {
-        private const string CreateMenuPath = "Tools/Veyra/Phase 02/Create Main Menu And Battle Preview";
         private static bool importingTmpResources;
         private static double tmpImportStartedAt;
 
@@ -42,8 +41,9 @@ namespace Veyra.Editor
             "Assets/_Veyra/Scripts/Runtime/Combat/Preview"
         };
 
-        [MenuItem(CreateMenuPath, priority = 200)]
-        public static void CreateMainMenuAndBattlePreview()
+        // Legacy Phase 02 authoring is intentionally hidden: it would overwrite the
+        // consolidated persistent menu/tutorial. Use the Progression factory instead.
+        private static void CreateMainMenuAndBattlePreview()
         {
             Phase02SetupReport report = new Phase02SetupReport();
 
@@ -93,7 +93,7 @@ namespace Veyra.Editor
             AssetDatabase.ImportPackage(packagePath, false);
             Debug.Log(
                 "[Veyra Phase 02] Importazione ufficiale TMP Essential Resources richiesta. " +
-                "Attendere il completamento e rilanciare Create Main Menu And Battle Preview.");
+                "Attendere il completamento; per rigenerare le scene usare la factory Progression.");
         }
 
         private static void OnTmpImportCompleted(string packageName)

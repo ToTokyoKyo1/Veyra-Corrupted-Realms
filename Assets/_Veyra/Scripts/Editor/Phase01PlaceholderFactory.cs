@@ -15,7 +15,7 @@ namespace Veyra.Editor
         internal const string BackgroundSpritePath =
             "Assets/_Veyra/Art/Sprites/Environment/World01/SPR_W01_Background_Placeholder.png";
         internal const string HeroPrefabPath =
-            "Assets/_Veyra/Prefabs/Characters/Hero01/PF_Hero01_Placeholder.prefab";
+            "Assets/_Veyra/Prefabs/Characters/Hero01/PF_Hero01_UserProvided.prefab";
         internal const string EnemyPrefabPath =
             "Assets/_Veyra/Prefabs/Enemies/World01/Enemy01/PF_W01_Enemy01_Placeholder.prefab";
 
@@ -50,7 +50,7 @@ namespace Veyra.Editor
 
             CreatePrefabIfMissing(
                 HeroPrefabPath,
-                "PF_Hero01_Placeholder",
+                "PF_Hero01_UserProvided",
                 HeroSpritePath,
                 10,
                 report);

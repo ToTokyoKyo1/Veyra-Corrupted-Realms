@@ -1,4 +1,5 @@
 using System;
+using Veyra.Combat;
 
 namespace Veyra.Combat.Encounter
 {
@@ -47,6 +48,8 @@ namespace Veyra.Combat.Encounter
         public bool IsEnemyGuardPrepared { get; private set; }
 
         public bool IsChargedStrikePrepared { get; private set; }
+
+        public bool IsEnemyExposed { get; private set; }
 
         public bool EnemyDefeated => EnemyHp == 0;
 
@@ -111,6 +114,11 @@ namespace Veyra.Combat.Encounter
             if (action == EncounterAction.Analyze)
             {
                 Memory.RecordAnalyze();
+                if (Rules.AnalyzeAppliesExposed)
+                {
+                    // Repeated analyzes refresh the same one-shot state; they never stack.
+                    IsEnemyExposed = true;
+                }
                 UpdateMood();
                 return EncounterActionResult.Completed(action, 0, false, false, false);
             }
@@ -210,6 +218,7 @@ namespace Veyra.Combat.Encounter
                 Resolution = NarrativeOutcome.HeroDefeated;
                 IsHeroGuardPrepared = false;
                 IsChargedStrikePrepared = false;
+                IsEnemyExposed = false;
             }
 
             UpdateMood();
@@ -220,6 +229,23 @@ namespace Veyra.Combat.Encounter
                 preparedGuard,
                 beganCharge,
                 Resolution);
+        }
+
+        public bool PassPlayerTurn()
+        {
+            if (Resolution != NarrativeOutcome.None || EnemyDefeated)
+            {
+                return false;
+            }
+
+            IsHeroGuardPrepared = false;
+            if (TechniqueCooldownRemaining > 0)
+            {
+                TechniqueCooldownRemaining--;
+            }
+
+            UpdateMood();
+            return true;
         }
 
         public NarrativeOutcome ResolveDefeatedEnemy(bool save)
@@ -244,7 +270,26 @@ namespace Veyra.Combat.Encounter
             IsHeroGuardPrepared = false;
             IsEnemyGuardPrepared = false;
             IsChargedStrikePrepared = false;
+            IsEnemyExposed = false;
             return Resolution;
+        }
+
+        public int ApplyExternalNonLethalDamage(int requestedDamage)
+        {
+            if (requestedDamage < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(requestedDamage));
+            }
+
+            if (Resolution != NarrativeOutcome.None || EnemyDefeated || requestedDamage == 0)
+            {
+                return 0;
+            }
+
+            int appliedDamage = Math.Min(requestedDamage, Math.Max(0, EnemyHp - 1));
+            EnemyHp -= appliedDamage;
+            UpdateMood();
+            return appliedDamage;
         }
 
         public void Reset()
@@ -255,6 +300,7 @@ namespace Veyra.Combat.Encounter
             IsHeroGuardPrepared = false;
             IsEnemyGuardPrepared = false;
             IsChargedStrikePrepared = false;
+            IsEnemyExposed = false;
             Resolution = NarrativeOutcome.None;
             corruptionPercent = Corruption.Clamp(EnemyProfile.CorruptionPercent);
             Mood = initialMood;
@@ -263,33 +309,40 @@ namespace Veyra.Combat.Encounter
 
         private int DamageEnemy(int requestedDamage, out bool reducedByGuard)
         {
-            reducedByGuard = IsEnemyGuardPrepared;
             int appliedDamage = requestedDamage;
-            if (IsEnemyGuardPrepared)
+            if (IsEnemyExposed)
             {
-                appliedDamage = Math.Max(
-                    1,
-                    requestedDamage * (100 - Rules.EnemyGuardReductionPercent) / 100);
-                IsEnemyGuardPrepared = false;
+                appliedDamage = ScalePercent(appliedDamage, Rules.ExposedDamagePercent);
+                IsEnemyExposed = false;
             }
+
+            CombatDamageResolution resolution = CombatDamageResolver.Resolve(
+                appliedDamage,
+                IsEnemyGuardPrepared);
+            reducedByGuard = resolution.BlockedByGuard;
+            appliedDamage = resolution.AppliedDamage;
+            if (IsEnemyGuardPrepared) IsEnemyGuardPrepared = false;
 
             int previousHp = EnemyHp;
             EnemyHp = Math.Max(0, EnemyHp - appliedDamage);
             return previousHp - EnemyHp;
         }
 
+        private static int ScalePercent(int value, int percent)
+        {
+            return Math.Max(0, (value * percent + 50) / 100);
+        }
+
         private int DamageHero(int requestedDamage, out bool blockedByGuard)
         {
-            blockedByGuard = IsHeroGuardPrepared;
+            CombatDamageResolution resolution = CombatDamageResolver.Resolve(
+                requestedDamage,
+                IsHeroGuardPrepared);
+            blockedByGuard = resolution.BlockedByGuard;
             IsHeroGuardPrepared = false;
 
-            if (blockedByGuard)
-            {
-                return 0;
-            }
-
             int previousHp = HeroHp;
-            HeroHp = Math.Max(0, HeroHp - requestedDamage);
+            HeroHp = Math.Max(0, HeroHp - resolution.AppliedDamage);
             return previousHp - HeroHp;
         }
 

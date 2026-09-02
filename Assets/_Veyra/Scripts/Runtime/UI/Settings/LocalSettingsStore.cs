@@ -59,12 +59,36 @@ namespace Veyra.UI.Settings
             PlayerPrefs.SetFloat(SfxVolumeKey, values.sfxVolume);
             PlayerPrefs.SetInt(VibrationEnabledKey, values.vibrationEnabled ? 1 : 0);
             PlayerPrefs.Save();
+            Apply(values);
+        }
+
+        public static void Apply(Values values)
+        {
             ApplyMasterVolume(values.masterVolume);
         }
 
         public static void ApplyMasterVolume(float volume)
         {
             AudioListener.volume = Mathf.Clamp01(volume);
+        }
+
+        public static float GetSfxVolume()
+        {
+            return Load().sfxVolume;
+        }
+
+        public static float GetMusicVolume()
+        {
+            return Load().musicVolume;
+        }
+
+        public static void TryVibrate()
+        {
+            Values current = Load();
+            if (current.vibrationEnabled && Application.isMobilePlatform)
+            {
+                Handheld.Vibrate();
+            }
         }
     }
 }

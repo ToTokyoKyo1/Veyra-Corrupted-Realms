@@ -42,7 +42,8 @@ namespace Veyra.Combat.Encounter
         RepeatedAttack,
         RepeatedGuard,
         TechniqueRhythm,
-        StrategyChanged
+        StrategyChanged,
+        FrequentAnalyze
     }
 
     public readonly struct EncounterActionResult

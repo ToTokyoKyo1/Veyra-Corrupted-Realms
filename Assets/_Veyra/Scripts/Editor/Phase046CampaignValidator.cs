@@ -62,6 +62,7 @@ namespace Veyra.Editor
             "analyzeCloseButton",
             "finalChoicePanel",
             "finalChoiceTitleText",
+            "finalChoicePortrait",
             "finalChoiceDialogueText",
             "saveButton",
             "killButton",
@@ -213,8 +214,8 @@ namespace Veyra.Editor
                 EncounterActionResult attack = state.ResolvePlayerAction(EncounterAction.Attack);
                 Require(enemyGuard.Accepted && enemyGuard.PreparedGuard,
                     "La Guardia nemica non è stata preparata.");
-                Require(attack.EnemyGuardReducedDamage && attack.DamageDealt == 7,
-                    "La Guardia nemica deve ridurre del 65% il danno 20, applicandone 7.");
+                Require(attack.EnemyGuardReducedDamage && attack.DamageDealt == 0,
+                    "La Guardia nemica deve bloccare il primo colpo parabile e applicare 0 danni.");
                 Require(!state.IsEnemyGuardPrepared,
                     "La Guardia nemica deve consumarsi al primo danno.");
 
@@ -389,6 +390,84 @@ namespace Veyra.Editor
                     "Il cambio strategia deve abbassare la sicurezza della previsione.");
                 Require(changedBrain.LastDecision.Pattern == LearnedPattern.StrategyChanged,
                     "Il cervello non espone il cambio strategia rilevato.");
+            });
+
+            RunAssertion(errors, "Analizza persistente influenza l'IA senza hard-counter", () =>
+            {
+                AdaptiveEnemyTuning analyzeTuning = new AdaptiveEnemyTuning
+                {
+                    AnalyzePatternMinimumCount = 3,
+                    AnalyzePatternFrequencyThreshold = 0.40d,
+                    AnalyzeResponseProbabilityMultiplier = 0.65d
+                };
+                EnemyMemory analyzeMemory = new EnemyMemory(2, 6, analyzeTuning);
+                analyzeMemory.RecordAnalyze();
+                analyzeMemory.RecordAnalyze();
+
+                AdaptiveEnemyBrain belowThreshold = new AdaptiveEnemyBrain(
+                    2,
+                    105,
+                    analyzeTuning);
+                belowThreshold.PlanAndLockIntent(analyzeMemory, CreateDecisionContext());
+                Require(belowThreshold.LastDecision.Pattern == LearnedPattern.None &&
+                        belowThreshold.LastDecision.CounterProbability == 0d,
+                    "Due Analisi non devono ancora produrre una previsione adattiva.");
+
+                analyzeMemory.RecordAnalyze();
+                AdaptiveEnemyBrain analyzeBrain = new AdaptiveEnemyBrain(
+                    2,
+                    106,
+                    analyzeTuning);
+                analyzeBrain.PlanAndLockIntent(analyzeMemory, CreateDecisionContext());
+                Require(analyzeMemory.HasFrequentAnalyzePattern &&
+                        analyzeMemory.HasEnoughObservationsForVisibleLearning(2),
+                    "Tre Analisi persistenti non formano un'abitudine osservabile.");
+                Require(analyzeBrain.LastDecision.Pattern == LearnedPattern.FrequentAnalyze,
+                    "L'IA non riconosce l'uso frequente di Analizza.");
+                Require(analyzeBrain.LastDecision.CounterProbability > 0d &&
+                        analyzeBrain.LastDecision.CounterProbability < 0.50d,
+                    "La risposta ad Analizza deve essere moderata, fallibile e mai perfetta.");
+                Require(analyzeMemory.PatternSummary.Contains("Analizza"),
+                    "Il riepilogo del pattern non comunica l'abitudine ad Analizza.");
+
+                EnemyMemory dilutedAnalyzeMemory = new EnemyMemory(2, 6, analyzeTuning);
+                dilutedAnalyzeMemory.RecordAnalyze();
+                dilutedAnalyzeMemory.RecordAnalyze();
+                dilutedAnalyzeMemory.RecordAnalyze();
+                dilutedAnalyzeMemory.RecordCompletedAction(EncounterAction.Attack);
+                dilutedAnalyzeMemory.RecordCompletedAction(EncounterAction.Guard);
+                dilutedAnalyzeMemory.RecordCompletedAction(EncounterAction.Technique);
+                dilutedAnalyzeMemory.RecordCompletedAction(EncounterAction.Attack);
+                dilutedAnalyzeMemory.RecordCompletedAction(EncounterAction.Guard);
+                dilutedAnalyzeMemory.RecordCompletedAction(EncounterAction.Technique);
+                Require(!dilutedAnalyzeMemory.HasFrequentAnalyzePattern,
+                    "La soglia percentuale configurata ignora una frequenza Analizza troppo bassa.");
+
+                AdaptiveEnemyTuning weakerResponse = new AdaptiveEnemyTuning
+                {
+                    AnalyzePatternMinimumCount = 3,
+                    AnalyzePatternFrequencyThreshold = 0.40d,
+                    AnalyzeResponseProbabilityMultiplier = 0.20d
+                };
+                AdaptiveEnemyBrain weakerBrain = new AdaptiveEnemyBrain(
+                    2,
+                    106,
+                    weakerResponse);
+                weakerBrain.PlanAndLockIntent(analyzeMemory, CreateDecisionContext());
+                Require(weakerBrain.LastDecision.Pattern == LearnedPattern.FrequentAnalyze &&
+                        weakerBrain.LastDecision.CounterProbability > 0d &&
+                        weakerBrain.LastDecision.CounterProbability <
+                        analyzeBrain.LastDecision.CounterProbability,
+                    "Il moltiplicatore configurabile non riduce la risposta ad Analizza.");
+
+                AdaptiveEnemyBrain unawareBrain = new AdaptiveEnemyBrain(
+                    0,
+                    106,
+                    analyzeTuning);
+                unawareBrain.PlanAndLockIntent(analyzeMemory, CreateDecisionContext());
+                Require(unawareBrain.LastDecision.Pattern == LearnedPattern.None &&
+                        unawareBrain.LastDecision.CounterProbability == 0d,
+                    "Un nemico senza intelligenza adattiva non deve usare il profilo Analizza.");
             });
 
             RunAssertion(errors, "Contromossa limitata e seed deterministico", () =>

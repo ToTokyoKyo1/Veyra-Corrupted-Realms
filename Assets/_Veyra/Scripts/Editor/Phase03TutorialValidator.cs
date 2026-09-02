@@ -95,7 +95,7 @@ namespace Veyra.Editor
 
         private static void ValidateBattleModel(List<string> errors)
         {
-            RunAssertion(errors, "Attacco base 100 → 80", () =>
+            RunAssertion(errors, "Attacco base 100 -> 80", () =>
             {
                 TutorialBattleState state = new TutorialBattleState();
                 BattleActionResult result = state.ResolvePlayerAction(BattleAction.Attack);
@@ -105,7 +105,7 @@ namespace Veyra.Editor
                 Require(state.EnemyHp == 80, "Gli HP nemici attesi erano 80, trovati " + state.EnemyHp + ".");
             });
 
-            RunAssertion(errors, "Contrattacco nemico 100 → 75", () =>
+            RunAssertion(errors, "Contrattacco nemico 100 -> 75", () =>
             {
                 TutorialBattleState state = new TutorialBattleState();
                 BattleActionResult result = state.ResolveEnemyAttack();

@@ -363,7 +363,7 @@ namespace Veyra.Editor
             ui.backButton = Phase02UiFactory.CreateButton(
                 "BTN_BackToMenu",
                 safeArea,
-                "MENU",
+                "MENU PRINCIPALE",
                 font,
                 new Vector2(0.04f, 0.705f),
                 new Vector2(0.29f, 0.74f),
@@ -483,6 +483,11 @@ namespace Veyra.Editor
             {
                 throw new InvalidOperationException("Testo del pulsante TECNICA mancante nel prefab della barra azioni.");
             }
+
+            Phase02UiFactory.ApplyProvidedButtonVisuals(ui.attackButton);
+            Phase02UiFactory.ApplyProvidedButtonVisuals(ui.guardButton);
+            Phase02UiFactory.ApplyProvidedButtonVisuals(ui.techniqueButton);
+            Phase02UiFactory.ApplyProvidedButtonVisuals(ui.analyzeButton);
 
             ui.attackHighlight = CreateActionHighlight("AttackHighlight", ui.attackButton.transform);
             ui.guardHighlight = CreateActionHighlight("GuardHighlight", ui.guardButton.transform);
@@ -712,7 +717,7 @@ namespace Veyra.Editor
             ui.outcomeMenuButton = Phase02UiFactory.CreateButton(
                 "BTN_OutcomeMenu",
                 card,
-                "TORNA AL MENU",
+                "MENU PRINCIPALE",
                 font,
                 new Vector2(0.12f, 0.08f),
                 new Vector2(0.88f, 0.35f),

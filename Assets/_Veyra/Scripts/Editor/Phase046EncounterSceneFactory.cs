@@ -175,6 +175,8 @@ namespace Veyra.Editor
             TMP_FontAsset font = Phase02UiFactory.LoadRequiredFont();
             BattleWorld world = CreateBattleWorld(sceneRoot.transform, definition);
             BattleUi ui = CreateBattleUi(sceneRoot.transform, font, definition);
+            ui.FinalChoicePortrait.sprite = world.EnemyVisual.sprite;
+            ui.FinalChoicePortrait.color = world.EnemyVisual.color;
 
             EncounterBattleController controller = world.Root.AddComponent<EncounterBattleController>();
             EncounterBattleNavigation navigation = ui.Root.AddComponent<EncounterBattleNavigation>();
@@ -540,7 +542,7 @@ namespace Veyra.Editor
             ui.BackButton = Phase02UiFactory.CreateButton(
                 "BTN_BackToMenu",
                 safeArea,
-                "MENU",
+                "MENU PRINCIPALE",
                 font,
                 new Vector2(0.04f, 0.705f),
                 new Vector2(0.29f, 0.74f),
@@ -813,8 +815,8 @@ namespace Veyra.Editor
             RectTransform card = Phase02UiFactory.CreatePanel(
                 "FinalChoiceCard",
                 overlay,
-                new Vector2(0.07f, 0.28f),
-                new Vector2(0.93f, 0.72f),
+                new Vector2(0.06f, 0.12f),
+                new Vector2(0.94f, 0.88f),
                 Vector2.zero,
                 Vector2.zero,
                 Phase02UiFactory.Panel);
@@ -826,21 +828,46 @@ namespace Veyra.Editor
                 Phase02UiFactory.Gold,
                 TextAlignmentOptions.Center,
                 font,
-                new Vector2(0.07f, 0.72f),
-                new Vector2(0.93f, 0.94f),
+                new Vector2(0.07f, 0.86f),
+                new Vector2(0.93f, 0.96f),
                 Vector2.zero,
                 Vector2.zero,
                 FontStyles.Bold);
+
+            RectTransform portraitFrame = Phase02UiFactory.CreatePanel(
+                "FinalChoicePortraitFrame",
+                card,
+                new Vector2(0.20f, 0.54f),
+                new Vector2(0.80f, 0.84f),
+                Vector2.zero,
+                Vector2.zero,
+                new Color(0.07f, 0.12f, 0.12f, 0.98f));
+            RectTransform portraitRect = Phase02UiFactory.CreateRect(
+                "IMG_FinalChoicePortrait",
+                portraitFrame);
+            Phase02UiFactory.SetRect(
+                portraitRect,
+                new Vector2(0.05f, 0.05f),
+                new Vector2(0.95f, 0.95f),
+                Vector2.zero,
+                Vector2.zero);
+            ui.FinalChoicePortrait = portraitRect.gameObject.AddComponent<Image>();
+            ui.FinalChoicePortrait.color = Color.white;
+            ui.FinalChoicePortrait.preserveAspect = true;
+            ui.FinalChoicePortrait.raycastTarget = false;
+
             ui.FinalChoiceDialogueText = Phase02UiFactory.CreateText(
                 "TXT_FinalChoiceDialogue",
                 card,
-                definition.DefeatedDialogue,
-                31f,
+                definition.DefeatedDialogue +
+                "\n\nSALVA: resta vivo; potrà tornare o aiutarti." +
+                "\nUCCIDI: esce dalla storia; non potrà aiutarti.",
+                27f,
                 Phase02UiFactory.MainText,
                 TextAlignmentOptions.Center,
                 font,
-                new Vector2(0.09f, 0.39f),
-                new Vector2(0.91f, 0.70f),
+                new Vector2(0.08f, 0.20f),
+                new Vector2(0.92f, 0.52f),
                 Vector2.zero,
                 Vector2.zero,
                 FontStyles.Italic);
@@ -849,8 +876,8 @@ namespace Veyra.Editor
                 card,
                 "SALVA",
                 font,
-                new Vector2(0.08f, 0.09f),
-                new Vector2(0.47f, 0.33f),
+                new Vector2(0.08f, 0.05f),
+                new Vector2(0.47f, 0.20f),
                 Vector2.zero,
                 Vector2.zero,
                 true);
@@ -859,8 +886,8 @@ namespace Veyra.Editor
                 card,
                 "UCCIDI",
                 font,
-                new Vector2(0.53f, 0.09f),
-                new Vector2(0.92f, 0.33f),
+                new Vector2(0.53f, 0.05f),
+                new Vector2(0.92f, 0.20f),
                 Vector2.zero,
                 Vector2.zero,
                 true);
@@ -982,7 +1009,7 @@ namespace Veyra.Editor
             ui.OutcomeMenuButton = Phase02UiFactory.CreateButton(
                 "BTN_OutcomeMenu",
                 card,
-                "TORNA AL MENU",
+                "MENU PRINCIPALE",
                 font,
                 new Vector2(0.12f, 0.07f),
                 new Vector2(0.88f, 0.27f),
@@ -1081,6 +1108,7 @@ namespace Veyra.Editor
 
             SetObject(serialized, "finalChoicePanel", ui.FinalChoicePanel);
             SetObject(serialized, "finalChoiceTitleText", ui.FinalChoiceTitleText);
+            SetObject(serialized, "finalChoicePortrait", ui.FinalChoicePortrait);
             SetObject(serialized, "finalChoiceDialogueText", ui.FinalChoiceDialogueText);
             SetObject(serialized, "saveButton", ui.SaveButton);
             SetObject(serialized, "killButton", ui.KillButton);
@@ -1582,6 +1610,7 @@ namespace Veyra.Editor
             internal Button AnalyzeCloseButton;
             internal GameObject FinalChoicePanel;
             internal TMP_Text FinalChoiceTitleText;
+            internal Image FinalChoicePortrait;
             internal TMP_Text FinalChoiceDialogueText;
             internal Button SaveButton;
             internal Button KillButton;

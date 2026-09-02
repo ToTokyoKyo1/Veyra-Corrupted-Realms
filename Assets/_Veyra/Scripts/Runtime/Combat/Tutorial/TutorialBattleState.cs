@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Veyra.Combat;
 using System.Collections.ObjectModel;
 
 namespace Veyra.Combat.Tutorial
@@ -106,7 +107,9 @@ namespace Veyra.Combat.Tutorial
             int enemyAttackDamage = 25,
             int techniqueCooldownTurns = 2,
             int historyCapacity = 8,
-            int repeatedPatternLength = 2)
+            int repeatedPatternLength = 2,
+            bool analyzeAppliesExposed = false,
+            int exposedDamagePercent = 125)
         {
             RequirePositive(heroMaxHp, nameof(heroMaxHp));
             RequirePositive(enemyMaxHp, nameof(enemyMaxHp));
@@ -128,6 +131,13 @@ namespace Veyra.Combat.Tutorial
                     "Technique cooldown must be at least one turn.");
             }
 
+            if (exposedDamagePercent < 100)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(exposedDamagePercent),
+                    "Exposed damage must be at least 100 percent.");
+            }
+
             RequirePositive(historyCapacity, nameof(historyCapacity));
             if (repeatedPatternLength < 2 || repeatedPatternLength > historyCapacity)
             {
@@ -142,6 +152,8 @@ namespace Veyra.Combat.Tutorial
             TechniqueDamage = techniqueDamage;
             EnemyAttackDamage = enemyAttackDamage;
             TechniqueCooldownTurns = techniqueCooldownTurns;
+            AnalyzeAppliesExposed = analyzeAppliesExposed;
+            ExposedDamagePercent = exposedDamagePercent;
             this.historyCapacity = historyCapacity;
             this.repeatedPatternLength = repeatedPatternLength;
             completedPlayerActionsView = completedPlayerActions.AsReadOnly();
@@ -161,6 +173,10 @@ namespace Veyra.Combat.Tutorial
 
         public int TechniqueCooldownTurns { get; }
 
+        public bool AnalyzeAppliesExposed { get; }
+
+        public int ExposedDamagePercent { get; }
+
         public int HeroHp { get; private set; }
 
         public int EnemyHp { get; private set; }
@@ -168,6 +184,8 @@ namespace Veyra.Combat.Tutorial
         public int TechniqueCooldownRemaining { get; private set; }
 
         public bool IsGuardPrepared { get; private set; }
+
+        public bool IsEnemyExposed { get; private set; }
 
         public BattleOutcome Outcome { get; private set; }
 
@@ -211,6 +229,7 @@ namespace Veyra.Combat.Tutorial
             EnemyHp = EnemyMaxHp;
             TechniqueCooldownRemaining = 0;
             IsGuardPrepared = false;
+            IsEnemyExposed = false;
             Outcome = BattleOutcome.Ongoing;
             completedPlayerActions.Clear();
         }
@@ -260,6 +279,11 @@ namespace Veyra.Combat.Tutorial
 
             if (action == BattleAction.Analyze)
             {
+                if (AnalyzeAppliesExposed)
+                {
+                    IsEnemyExposed = true;
+                }
+
                 return BattleActionResult.Completed(action, 0, false, false, Outcome);
             }
 
@@ -297,12 +321,14 @@ namespace Veyra.Combat.Tutorial
                 return BattleActionResult.Rejected(BattleAction.Attack, Outcome, BattleFinishedReason);
             }
 
-            bool blockedByGuard = IsGuardPrepared;
-            int requestedDamage = blockedByGuard ? 0 : EnemyAttackDamage;
+            CombatDamageResolution resolution = CombatDamageResolver.Resolve(
+                EnemyAttackDamage,
+                IsGuardPrepared);
+            bool blockedByGuard = resolution.BlockedByGuard;
 
             IsGuardPrepared = false;
             int previousHp = HeroHp;
-            HeroHp = Math.Max(0, HeroHp - requestedDamage);
+            HeroHp = Math.Max(0, HeroHp - resolution.AppliedDamage);
             int damageDealt = previousHp - HeroHp;
             UpdateOutcome();
 
@@ -312,6 +338,22 @@ namespace Veyra.Combat.Tutorial
                 true,
                 blockedByGuard,
                 Outcome);
+        }
+
+        public bool PassPlayerTurn()
+        {
+            if (IsFinished)
+            {
+                return false;
+            }
+
+            IsGuardPrepared = false;
+            if (TechniqueCooldownRemaining > 0)
+            {
+                TechniqueCooldownRemaining--;
+            }
+
+            return true;
         }
 
         public bool TryGetRepeatedPlayerAction(out BattleAction action)
@@ -328,8 +370,15 @@ namespace Veyra.Combat.Tutorial
 
         private int DamageEnemy(int requestedDamage)
         {
+            int appliedDamage = requestedDamage;
+            if (IsEnemyExposed)
+            {
+                appliedDamage = Math.Max(0, (appliedDamage * ExposedDamagePercent + 50) / 100);
+                IsEnemyExposed = false;
+            }
+
             int previousHp = EnemyHp;
-            EnemyHp = Math.Max(0, EnemyHp - requestedDamage);
+            EnemyHp = Math.Max(0, EnemyHp - appliedDamage);
             return previousHp - EnemyHp;
         }
 
@@ -352,6 +401,7 @@ namespace Veyra.Combat.Tutorial
             else if (HeroHp == 0)
             {
                 Outcome = BattleOutcome.Defeat;
+                IsEnemyExposed = false;
             }
         }
 

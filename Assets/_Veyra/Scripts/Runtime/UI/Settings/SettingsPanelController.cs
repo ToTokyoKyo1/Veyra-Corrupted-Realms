@@ -72,7 +72,7 @@ namespace Veyra.UI.Settings
             InitializeIfNeeded();
             values = LocalSettingsStore.Defaults;
             ApplyValuesToUi();
-            LocalSettingsStore.ApplyMasterVolume(values.masterVolume);
+            LocalSettingsStore.Apply(values);
         }
 
         public void OnMasterVolumeChanged(float value)
@@ -85,18 +85,21 @@ namespace Veyra.UI.Settings
         public void OnMusicVolumeChanged(float value)
         {
             values.musicVolume = Mathf.Clamp01(value);
+            LocalSettingsStore.Save(values);
             UpdateValueLabels();
         }
 
         public void OnSfxVolumeChanged(float value)
         {
             values.sfxVolume = Mathf.Clamp01(value);
+            LocalSettingsStore.Save(values);
             UpdateValueLabels();
         }
 
         public void OnVibrationChanged(bool value)
         {
             values.vibrationEnabled = value;
+            LocalSettingsStore.Save(values);
         }
 
         private void InitializeIfNeeded()
@@ -108,7 +111,7 @@ namespace Veyra.UI.Settings
 
             values = LocalSettingsStore.Load();
             ApplyValuesToUi();
-            LocalSettingsStore.ApplyMasterVolume(values.masterVolume);
+            LocalSettingsStore.Apply(values);
             initialized = true;
         }
 

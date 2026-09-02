@@ -30,7 +30,7 @@ namespace Veyra.Editor
             "WorldRoot",
             "WorldRoot/Background",
             "WorldRoot/HeroSlot",
-            "WorldRoot/HeroSlot/PF_Hero01_Placeholder",
+            "WorldRoot/HeroSlot/PF_Hero01_UserProvided",
             "WorldRoot/EnemySlot",
             "WorldRoot/EnemySlot/PF_W01_Enemy01_Placeholder",
             "UIRoot",
@@ -318,7 +318,7 @@ namespace Veyra.Editor
 
         private static void ValidatePrefabs(List<string> errors)
         {
-            ValidatePrefab(Phase01PlaceholderFactory.HeroPrefabPath, "PF_Hero01_Placeholder", 10, errors);
+            ValidatePrefab(Phase01PlaceholderFactory.HeroPrefabPath, "PF_Hero01_UserProvided", 10, errors);
             ValidatePrefab(Phase01PlaceholderFactory.EnemyPrefabPath, "PF_W01_Enemy01_Placeholder", 20, errors);
         }
 

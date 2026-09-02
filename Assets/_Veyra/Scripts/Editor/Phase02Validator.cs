@@ -13,6 +13,7 @@ using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Veyra.Combat.Preview;
+using Veyra.Combat.Tutorial;
 using Veyra.UI;
 using Veyra.UI.MainMenu;
 using Veyra.UI.Settings;
@@ -45,17 +46,25 @@ namespace Veyra.Editor
         private const string MainReturnDelay = "MainReturnDelay";
         private const string WaitingForEdit = "WaitingForEdit";
 
+        private const string MainNavigationPath =
+            "UIRoot/Canvas/SafeArea/ProgressionMenuRoot/MainNavigationPanel";
+        private const string MainStartButtonPath = MainNavigationPath + "/BTN_Start";
+        private const string MainOptionsButtonPath = MainNavigationPath + "/BTN_Options";
+        private const string TutorialSafeAreaPath = "TutorialUIRoot/Canvas/SafeArea";
+        private const string TutorialActionBarPath = TutorialSafeAreaPath + "/ActionBar";
+
         private static readonly string[] MainHierarchy =
         {
             "Main Camera",
             "UIRoot",
             "UIRoot/Canvas",
             "UIRoot/Canvas/SafeArea",
-            "UIRoot/Canvas/SafeArea/BackgroundLayers",
-            "UIRoot/Canvas/SafeArea/TitleArea",
-            "UIRoot/Canvas/SafeArea/HeroPreview",
-            "UIRoot/Canvas/SafeArea/StartCard",
-            "UIRoot/Canvas/SafeArea/Footer",
+            "UIRoot/Canvas/SafeArea/ProgressionMenuRoot",
+            MainNavigationPath,
+            MainStartButtonPath,
+            MainNavigationPath + "/BTN_Levels",
+            MainNavigationPath + "/BTN_Heroes",
+            MainOptionsButtonPath,
             "UIRoot/Canvas/SafeArea/Dimmer",
             "UIRoot/Canvas/SafeArea/SettingsModal",
             "UIRoot/Canvas/SafeArea/LoadingOverlay",
@@ -66,32 +75,34 @@ namespace Veyra.Editor
         private static readonly string[] TutorialHierarchy =
         {
             "Main Camera",
-            "BattlePreviewRoot",
-            "BattlePreviewRoot/Background",
-            "BattlePreviewRoot/HeroSlot",
-            "BattlePreviewRoot/HeroSlot/HeroVisual",
-            "BattlePreviewRoot/HeroSlot/HeroProjectileOrigin",
-            "BattlePreviewRoot/HeroSlot/HeroHitTarget",
-            "BattlePreviewRoot/HeroSlot/GuardVisual",
-            "BattlePreviewRoot/EnemySlot",
-            "BattlePreviewRoot/EnemySlot/EnemyVisual",
-            "BattlePreviewRoot/EnemySlot/EnemyProjectileOrigin",
-            "BattlePreviewRoot/EnemySlot/EnemyHitTarget",
-            "BattlePreviewRoot/EnemySlot/MarkPreview",
-            "BattlePreviewRoot/PreviewEffects",
-            "BattlePreviewRoot/PreviewEffects/HeroBasicProjectile",
-            "BattlePreviewRoot/PreviewEffects/HeroTechniqueProjectile",
-            "BattlePreviewRoot/PreviewEffects/EnemyProjectile",
-            "UIRoot",
-            "UIRoot/Canvas",
-            "UIRoot/Canvas/SafeArea",
-            "UIRoot/Canvas/SafeArea/EnemyPanel",
-            "UIRoot/Canvas/SafeArea/IntentPanel",
-            "UIRoot/Canvas/SafeArea/CombatMessage",
-            "UIRoot/Canvas/SafeArea/HeroPanel",
-            "UIRoot/Canvas/SafeArea/FocusPanel",
-            "UIRoot/Canvas/SafeArea/ActionBar",
-            "UIRoot/Canvas/SafeArea/BTN_BackToMenu",
+            "TutorialBattleRoot",
+            "TutorialBattleRoot/Background",
+            "TutorialBattleRoot/HeroSlot",
+            "TutorialBattleRoot/HeroSlot/HeroVisual",
+            "TutorialBattleRoot/HeroSlot/HeroProjectileOrigin",
+            "TutorialBattleRoot/HeroSlot/HeroHitTarget",
+            "TutorialBattleRoot/HeroSlot/GuardVisual",
+            "TutorialBattleRoot/EnemySlot",
+            "TutorialBattleRoot/EnemySlot/EnemyVisual",
+            "TutorialBattleRoot/EnemySlot/EnemyProjectileOrigin",
+            "TutorialBattleRoot/EnemySlot/EnemyHitTarget",
+            "TutorialBattleRoot/PersistentEffects",
+            "TutorialBattleRoot/PersistentEffects/HeroBasicProjectile",
+            "TutorialBattleRoot/PersistentEffects/HeroTechniqueProjectile",
+            "TutorialBattleRoot/PersistentEffects/EnemyProjectile",
+            "TutorialUIRoot",
+            "TutorialUIRoot/Canvas",
+            TutorialSafeAreaPath,
+            TutorialSafeAreaPath + "/HeroStatus",
+            TutorialSafeAreaPath + "/EnemyStatus",
+            TutorialSafeAreaPath + "/StatusPanel",
+            TutorialSafeAreaPath + "/IntentPanel",
+            TutorialSafeAreaPath + "/CombatMessage",
+            TutorialActionBarPath,
+            TutorialSafeAreaPath + "/BTN_BackToMenu",
+            TutorialSafeAreaPath + "/TutorialOverlay",
+            TutorialSafeAreaPath + "/AnalyzePanel",
+            TutorialSafeAreaPath + "/OutcomeOverlay",
             "EventSystem"
         };
 
@@ -126,8 +137,9 @@ namespace Veyra.Editor
             ExitBatchMode(errors.Count == 0 ? 0 : 1);
         }
 
-        [MenuItem("Tools/Veyra/Phase 02/Validate Phase 02 With Play Mode", priority = 202)]
-        public static void ValidatePhase02WithPlayMode()
+        // Historical BattlePreview/Marchio automation. The persistent tutorial flow is now
+        // covered by Phase03TutorialValidator and Phase78ProgressionValidator.
+        private static void ValidatePhase02WithPlayMode()
         {
             if (!PrepareToOpenValidationScenes())
             {
@@ -158,7 +170,7 @@ namespace Veyra.Editor
 
             EditorSceneManager.OpenScene(Phase02SceneFactory.MainMenuScenePath, OpenSceneMode.Single);
             SessionState.SetString(StateKey, WaitingForPlay);
-            Debug.Log("[Veyra Phase 02 Validation] Controlli pre-Play superati. Avvio del flusso Menu → Tutorial Draft → Menu.");
+            Debug.Log("[Veyra Phase 02 Validation] Controlli pre-Play superati. Avvio del flusso Menu -> Tutorial -> Menu.");
             EditorApplication.EnterPlaymode();
         }
 
@@ -384,21 +396,18 @@ namespace Veyra.Editor
                 }
             }
 
-            ValidateButtonListener(root, "UIRoot/Canvas/SafeArea/StartCard/ButtonStack/BTN_Start", errors);
-            ValidateButtonListener(root, "UIRoot/Canvas/SafeArea/StartCard/ButtonStack/BTN_Settings", errors);
+            ValidateButtonListener(root, MainStartButtonPath, errors);
+            ValidateButtonListener(root, MainOptionsButtonPath, errors);
             ValidateButtonListener(root, "UIRoot/Canvas/SafeArea/SettingsModal/BTN_Reset", errors);
             ValidateButtonListener(root, "UIRoot/Canvas/SafeArea/SettingsModal/BTN_CloseSettings", errors);
 
-            ValidateTouchTarget(root, "UIRoot/Canvas/SafeArea/StartCard/ButtonStack/BTN_Start", 156f, errors);
-            ValidateTouchTarget(root, "UIRoot/Canvas/SafeArea/StartCard/ButtonStack/BTN_Settings", 144f, errors);
+            ValidateTouchTarget(root, MainStartButtonPath, 156f, errors);
+            ValidateTouchTarget(root, MainOptionsButtonPath, 144f, errors);
             ValidateLayouts(
                 root,
                 new[]
                 {
-                    "UIRoot/Canvas/SafeArea/TitleArea",
-                    "UIRoot/Canvas/SafeArea/HeroPreview",
-                    "UIRoot/Canvas/SafeArea/StartCard",
-                    "UIRoot/Canvas/SafeArea/Footer",
+                    MainNavigationPath,
                     "UIRoot/Canvas/SafeArea/SettingsModal"
                 },
                 errors);
@@ -416,38 +425,41 @@ namespace Veyra.Editor
             ValidateHierarchy(root, TutorialHierarchy, errors);
             ValidateCommonSceneRequirements(root, errors);
             ValidateSerializedReferences(
-                root.GetComponentInChildren<BattlePreviewController>(true),
+                root.GetComponentInChildren<TutorialBattleController>(true),
                 new[]
                 {
-                    "combatMessage", "heroVisual", "enemyVisual", "heroProjectileOrigin", "heroHitTarget",
+                    "attackButton", "guardButton", "techniqueButton", "analyzeButton",
+                    "combatMessage", "intentText", "statusText", "heroHealthFill", "enemyHealthFill",
+                    "heroHealthValue", "enemyHealthValue", "heroActor", "enemyActor", "heroVisual",
+                    "enemyVisual", "heroProjectileOrigin", "heroHitTarget",
                     "enemyProjectileOrigin", "enemyHitTarget", "heroBasicProjectile", "heroTechniqueProjectile",
-                    "enemyProjectile", "guardVisual", "markPreview"
+                    "enemyProjectile", "guardVisual", "tutorialOverlay", "tutorialInputBlocker",
+                    "tutorialStepText", "tutorialBodyText", "tutorialNextButton", "analyzePanel",
+                    "analyzeNameText", "analyzeRaceText", "analyzeCorruptionText", "analyzeMoodText",
+                    "analyzeCloseButton", "outcomeOverlay", "outcomeText", "outcomeMenuButton", "navigation"
                 },
-                errors,
-                "actionButtons",
-                4);
+                errors);
             ValidateSerializedReferences(
-                root.GetComponentInChildren<BattlePreviewNavigation>(true),
-                new[] { "backButton", "previewController" },
+                root.GetComponentInChildren<TutorialBattleNavigation>(true),
+                new[] { "backButton", "resultMenuButton", "battleController" },
                 errors);
 
-            string[] buttons = { "BTN_Attack", "BTN_Guard", "BTN_Technique", "BTN_Mark" };
+            string[] buttons = { "BTN_Attack", "BTN_Guard", "BTN_Technique", "BTN_Analyze" };
             foreach (string buttonName in buttons)
             {
-                string path = "UIRoot/Canvas/SafeArea/ActionBar/" + buttonName;
+                string path = TutorialActionBarPath + "/" + buttonName;
                 ValidateButtonListener(root, path, errors);
                 ValidateTouchTarget(root, path, 144f, errors);
             }
 
-            ValidateButtonListener(root, "UIRoot/Canvas/SafeArea/BTN_BackToMenu", errors);
+            ValidateButtonListener(root, TutorialSafeAreaPath + "/BTN_BackToMenu", errors);
 
             string[] inactiveEffects =
             {
-                "BattlePreviewRoot/HeroSlot/GuardVisual",
-                "BattlePreviewRoot/EnemySlot/MarkPreview",
-                "BattlePreviewRoot/PreviewEffects/HeroBasicProjectile",
-                "BattlePreviewRoot/PreviewEffects/HeroTechniqueProjectile",
-                "BattlePreviewRoot/PreviewEffects/EnemyProjectile"
+                "TutorialBattleRoot/HeroSlot/GuardVisual",
+                "TutorialBattleRoot/PersistentEffects/HeroBasicProjectile",
+                "TutorialBattleRoot/PersistentEffects/HeroTechniqueProjectile",
+                "TutorialBattleRoot/PersistentEffects/EnemyProjectile"
             };
             foreach (string path in inactiveEffects)
             {
@@ -462,13 +474,13 @@ namespace Veyra.Editor
                 root,
                 new[]
                 {
-                    "UIRoot/Canvas/SafeArea/EnemyPanel",
-                    "UIRoot/Canvas/SafeArea/IntentPanel",
-                    "UIRoot/Canvas/SafeArea/CombatMessage",
-                    "UIRoot/Canvas/SafeArea/HeroPanel",
-                    "UIRoot/Canvas/SafeArea/FocusPanel",
-                    "UIRoot/Canvas/SafeArea/ActionBar",
-                    "UIRoot/Canvas/SafeArea/BTN_BackToMenu"
+                    TutorialSafeAreaPath + "/HeroStatus",
+                    TutorialSafeAreaPath + "/EnemyStatus",
+                    TutorialSafeAreaPath + "/StatusPanel",
+                    TutorialSafeAreaPath + "/IntentPanel",
+                    TutorialSafeAreaPath + "/CombatMessage",
+                    TutorialActionBarPath,
+                    TutorialSafeAreaPath + "/BTN_BackToMenu"
                 },
                 errors);
         }

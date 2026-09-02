@@ -1,5 +1,4 @@
 #if UNITY_EDITOR
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
@@ -14,22 +13,11 @@ namespace Veyra.Editor
         [MenuItem(MenuPath, priority = 400)]
         public static void CreateEncounters02And03()
         {
-            Phase046CampaignSetupReport report = new Phase046CampaignSetupReport();
-
-            try
-            {
-                Phase046EncounterSceneFactory.CreateOrUpdateCampaign(report);
-                AssetDatabase.SaveAssets();
-                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-                report.LogSummary();
-            }
-            catch (Exception exception)
-            {
-                Debug.LogException(exception);
-                Debug.LogError(
-                    "[Veyra Campaign] Generazione interrotta. Le scene preesistenti e gli oggetti esterni ai root di proprietà della campagna sono stati preservati.");
-                throw;
-            }
+            // This historical command remains as a safe alias. Running the old
+            // L2-L3 authoring pass alone would overwrite the consolidated menu
+            // and omit the current progression references, so route it through
+            // the single idempotent campaign generator instead.
+            Phase78ProgressionSetup.CreateMenuHeroProgressAndLevel04();
         }
     }
 

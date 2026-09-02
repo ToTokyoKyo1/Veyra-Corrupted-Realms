@@ -344,7 +344,7 @@ namespace Veyra.Editor
                 "LoadingOverlay", safeArea, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero,
                 new Color(Phase02UiFactory.Background.r, Phase02UiFactory.Background.g, Phase02UiFactory.Background.b, 0.96f), true);
             Phase02UiFactory.CreateText(
-                "TXT_Loading", ui.loadingOverlay, "LA LINFA RISALE…\nCaricamento", 48f, Phase02UiFactory.Light,
+                "TXT_Loading", ui.loadingOverlay, "LA LINFA RISALE...\nCaricamento", 48f, Phase02UiFactory.Light,
                 TextAlignmentOptions.Center, font,
                 new Vector2(0.08f, 0.38f), new Vector2(0.92f, 0.62f), Vector2.zero, Vector2.zero, FontStyles.Bold);
 

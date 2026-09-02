@@ -4,7 +4,11 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using Veyra.Combat.Support;
 using Veyra.Core;
+using Veyra.Combat.Tactical;
+using Veyra.Progression;
+using Veyra.UI.Battle;
 
 namespace Veyra.Combat.Encounter
 {
@@ -19,6 +23,10 @@ namespace Veyra.Combat.Encounter
         [SerializeField] private EnemyMood enemyInitialMood = EnemyMood.Triste;
         [SerializeField, Range(0, 3)] private int enemyIntelligenceLevel = 1;
         [SerializeField] private int enemyRandomSeed = 1202;
+
+        [Header("Adaptive learning")]
+        [SerializeField] private AdaptiveEnemyTuning adaptiveLearningTuning =
+            new AdaptiveEnemyTuning();
 
         [Header("Combat tuning")]
         [SerializeField, Min(1)] private int heroMaxHp = 100;
@@ -70,6 +78,7 @@ namespace Veyra.Combat.Encounter
 
         [Header("HUD")]
         [SerializeField] private TMP_Text combatMessage;
+        [SerializeField] private TMP_Text phaseText;
         [SerializeField] private TMP_Text intentText;
         [SerializeField] private TMP_Text statusText;
         [SerializeField] private TMP_Text predictionFeedbackText;
@@ -77,6 +86,12 @@ namespace Veyra.Combat.Encounter
         [SerializeField] private Image enemyHealthFill;
         [SerializeField] private TMP_Text heroHealthValue;
         [SerializeField] private TMP_Text enemyHealthValue;
+
+        [Header("Contextual world HUD")]
+        [SerializeField] private WorldHealthBarView heroWorldHealthBar;
+        [SerializeField] private WorldHealthBarView enemyWorldHealthBar;
+        [SerializeField] private WorldDialogueBubbleView enemyWorldDialogue;
+        [SerializeField] private WorldDialogueBubbleView allyWorldDialogue;
 
         [Header("Enemy dialogue")]
         [SerializeField] private GameObject enemyDialogueRoot;
@@ -87,6 +102,9 @@ namespace Veyra.Combat.Encounter
         [SerializeField] private Transform enemyActor;
         [SerializeField] private SpriteRenderer heroVisual;
         [SerializeField] private SpriteRenderer enemyVisual;
+
+        [Header("Tactical battlefield")]
+        [SerializeField] private TacticalBattlefieldController battlefield;
         [SerializeField] private Transform heroProjectileOrigin;
         [SerializeField] private Transform heroHitTarget;
         [SerializeField] private Transform enemyProjectileOrigin;
@@ -102,6 +120,12 @@ namespace Veyra.Combat.Encounter
         [SerializeField] private GameObject savedVisual;
         [SerializeField] private GameObject killedVisual;
 
+        [Header("Saved ally support (optional)")]
+        [SerializeField] private GameObject thornGuardianAllyActor;
+        [SerializeField] private GameObject thornGuardianSupportEffect;
+        [SerializeField] private GameObject allyDialogueRoot;
+        [SerializeField] private TMP_Text allyDialogueText;
+
         [Header("Analyze panel")]
         [SerializeField] private GameObject analyzePanel;
         [SerializeField] private TMP_Text analyzeNameText;
@@ -115,6 +139,7 @@ namespace Veyra.Combat.Encounter
         [Header("Final choice")]
         [SerializeField] private GameObject finalChoicePanel;
         [SerializeField] private TMP_Text finalChoiceTitleText;
+        [SerializeField] private Image finalChoicePortrait;
         [SerializeField] private TMP_Text finalChoiceDialogueText;
         [SerializeField] private Button saveButton;
         [SerializeField] private Button killButton;
@@ -129,12 +154,24 @@ namespace Veyra.Combat.Encounter
         [SerializeField] private GameObject outcomeOverlay;
         [SerializeField] private TMP_Text outcomeText;
         [SerializeField] private TMP_Text outcomeDialogueText;
+        [SerializeField] private TMP_Text outcomeProgressText;
         [SerializeField] private Button outcomeMenuButton;
+        [SerializeField] private Button outcomeContinueButton;
+        [SerializeField] private Button outcomeRetryButton;
         [SerializeField] private EncounterBattleNavigation navigation;
 
         private const float DialogueVisibleSeconds = 2.7f;
         private const float ReactionLeadInSeconds = 0.52f;
         private const float LowHealthThreshold = 0.35f;
+        private const string MoralConsequencesText =
+            "\n\nSALVA: resta vivo; potrà tornare o aiutarti." +
+            "\nUCCIDI: esce dalla storia; non potrà aiutarti.";
+        private const float RecordedChoiceScale = 1.06f;
+
+        private static readonly Color RecordedSaveColor =
+            new Color(0.30f, 0.78f, 0.58f, 1f);
+        private static readonly Color RecordedKillColor =
+            new Color(0.88f, 0.38f, 0.40f, 1f);
 
         private readonly HashSet<EncounterAction> spokenActionReactions =
             new HashSet<EncounterAction>();
@@ -145,12 +182,21 @@ namespace Veyra.Combat.Encounter
         private Coroutine dialogueHideRoutine;
         private bool actionRunning;
         private bool analyzePanelOpen;
+        private bool analyzeUsedThisTurn;
         private bool finalChoiceOpen;
         private bool confirmationOpen;
         private bool? pendingSaveChoice;
         private string pendingAnalyzeDialogue = string.Empty;
         private bool lowHpDialogueShown;
         private string announcedPatternKey = string.Empty;
+        private bool rewardGrantedThisBattle;
+        private bool isReplayBattle;
+        private bool replayChoiceChanged;
+        private EncounterResolution previousResolution;
+        private SavedAllySupport thornGuardianSupport;
+        private Coroutine allyDialogueHideRoutine;
+        private int completedHeroTurns;
+        private Vector3 thornGuardianSupportBaseScale;
         private Vector3 heroBasePosition;
         private Vector3 enemyBasePosition;
         private Color heroBaseColor;
@@ -158,11 +204,16 @@ namespace Veyra.Combat.Encounter
         private Vector3 heroBasicProjectileBaseScale;
         private Vector3 heroTechniqueProjectileBaseScale;
         private Vector3 enemyProjectileBaseScale;
+        private HeroCombatPresentation heroCombatPresentation;
         private Vector3 heroGuardBaseScale;
         private Vector3 enemyGuardBaseScale;
         private Vector3 enemyChargeBaseScale;
         private Vector3 savedVisualBaseScale;
         private Vector3 killedVisualBaseScale;
+        private ColorBlock saveButtonNeutralColors;
+        private ColorBlock killButtonNeutralColors;
+        private Vector3 saveButtonNeutralScale;
+        private Vector3 killButtonNeutralScale;
 
         public int HeroCurrentHp => battleState != null ? battleState.HeroHp : heroMaxHp;
         public int EnemyCurrentHp => battleState != null ? battleState.EnemyHp : enemyMaxHp;
@@ -183,6 +234,7 @@ namespace Veyra.Combat.Encounter
         public bool IsFinalChoiceOpen => finalChoiceOpen;
         public bool IsConfirmationOpen => confirmationOpen;
         public int AnalyzeCount => enemyMemory != null ? enemyMemory.AnalysisCount : 0;
+        public bool AnalyzeUsedThisTurn => analyzeUsedThisTurn;
 
         private void Awake()
         {
@@ -193,6 +245,7 @@ namespace Veyra.Combat.Encounter
             }
 
             CapturePersistentVisualState();
+            heroCombatPresentation = HeroCombatPresentation.Ensure(heroActor);
             InitializeBattle();
         }
 
@@ -208,11 +261,17 @@ namespace Veyra.Combat.Encounter
             enemyGuardReductionPercent = Mathf.Clamp(enemyGuardReductionPercent, 1, 99);
             enemyCorruptionPercent = Mathf.Clamp(enemyCorruptionPercent, 0, 100);
             enemyIntelligenceLevel = Mathf.Clamp(enemyIntelligenceLevel, 0, 3);
+            adaptiveLearningTuning = AdaptiveEnemyTuning.Normalize(adaptiveLearningTuning);
             resultReturnDelay = Mathf.Max(0.1f, resultReturnDelay);
         }
 
         public void ChooseAttack()
         {
+            if (battlefield != null && !battlefield.CanUseOffensiveAction(1, enemyActor))
+            {
+                combatMessage.text = "Bersaglio fuori portata · usa MUOVI";
+                return;
+            }
             BeginPlayerAction(EncounterAction.Attack);
         }
 
@@ -223,13 +282,51 @@ namespace Veyra.Combat.Encounter
 
         public void ChooseTechnique()
         {
+            if (battlefield != null && !battlefield.CanUseOffensiveAction(2, enemyActor))
+            {
+                combatMessage.text = "Bersaglio fuori portata della Tecnica";
+                return;
+            }
             BeginPlayerAction(EncounterAction.Technique);
+        }
+
+        public void BeginTacticalMove()
+        {
+            if (CanAcceptInput() && battlefield != null)
+            {
+                battlefield.ToggleMoveMode();
+            }
+        }
+
+        public void EndTacticalTurn()
+        {
+            if (!CanAcceptInput() || battlefield == null || !battleState.PassPlayerTurn())
+            {
+                return;
+            }
+
+            if (!enemyBrain.HasLockedIntent)
+            {
+                PlanNextIntent();
+            }
+
+            actionRunning = true;
+            battlefield.CommitAction();
+            SetAllActionButtons(false);
+            StartCoroutine(ResolvePassedTurn(enemyBrain.LockedIntent.Value));
         }
 
         public void OpenAnalyze()
         {
             if (!CanAcceptInput() || analyzePanelOpen)
             {
+                return;
+            }
+
+            if (analyzeUsedThisTurn)
+            {
+                combatMessage.text = "ANALIZZA GIÀ USATO · DISPONIBILE AL PROSSIMO TURNO";
+                RefreshActionButtons();
                 return;
             }
 
@@ -242,6 +339,9 @@ namespace Veyra.Combat.Encounter
                 return;
             }
 
+            CampaignProgressStore.TryRecordPlayerAction(EncounterAction.Analyze.ToString());
+            analyzeUsedThisTurn = true;
+
             if (!enemyBrain.HasLockedIntent || enemyBrain.LockedIntent != lockedBeforeAnalyze)
             {
                 Debug.LogError("[Veyra Encounter] ANALIZZA ha modificato l'intenzione bloccata.", this);
@@ -252,7 +352,10 @@ namespace Veyra.Combat.Encounter
             PopulateAnalyzePanel();
             analyzeCloseButton.interactable = true;
             analyzePanel.SetActive(true);
-            combatMessage.text = "Informazioni sul nemico: nessun turno consumato";
+            SetPhase("ANALIZZA · DOSSIER NEMICO");
+            combatMessage.text = battleState.IsEnemyExposed
+                ? "VISTA DELLA CORRUZIONE: ESPOSTO applicato · prossimo danno +25%"
+                : "Informazioni sul nemico: nessun turno consumato";
 
             pendingAnalyzeDialogue = enemyMemory.AnalysisCount <= 1
                 ? firstAnalyzeDialogue
@@ -282,6 +385,7 @@ namespace Veyra.Combat.Encounter
             analyzeCloseButton.interactable = false;
             analyzePanel.SetActive(false);
             analyzePanelOpen = false;
+            SetPhase("TUO TURNO · SCEGLI UN'AZIONE");
             combatMessage.text = "Analisi completata: nessun turno consumato";
 
             string dialogue = pendingAnalyzeDialogue;
@@ -320,10 +424,19 @@ namespace Veyra.Combat.Encounter
             finalChoicePanel.SetActive(false);
             finalChoiceOpen = false;
             actionRunning = true;
+            if (battlefield != null)
+            {
+                battlefield.CommitAction();
+            }
 
+            EncounterResolution selectedResolution = save
+                ? EncounterResolution.Saved
+                : EncounterResolution.Killed;
+            bool wasReplayBattle = isReplayBattle;
+            replayChoiceChanged = isReplayBattle && previousResolution != selectedResolution;
             battleState.ResolveDefeatedEnemy(save);
             RecordCampaignResolution(save);
-            StartCoroutine(ShowNarrativeOutcome(save));
+            StartCoroutine(ShowNarrativeOutcome(save, wasReplayBattle));
         }
 
         public void BackFromFinalConfirmation()
@@ -343,6 +456,8 @@ namespace Veyra.Combat.Encounter
             finalChoiceOpen = true;
             saveButton.interactable = true;
             killButton.interactable = true;
+            RefreshRecordedMoralChoiceVisual();
+            SetPhase("DECIDI IL SUO DESTINO");
         }
 
         public void ReturnToMenu()
@@ -357,8 +472,10 @@ namespace Veyra.Combat.Encounter
         {
             StopAllCoroutines();
             dialogueHideRoutine = null;
+            allyDialogueHideRoutine = null;
             actionRunning = false;
             analyzePanelOpen = false;
+            analyzeUsedThisTurn = false;
             finalChoiceOpen = false;
             confirmationOpen = false;
             pendingSaveChoice = null;
@@ -368,6 +485,11 @@ namespace Veyra.Combat.Encounter
             confirmationPanel.SetActive(false);
             outcomeOverlay.SetActive(false);
             enemyDialogueRoot.SetActive(false);
+            if (allyDialogueRoot != null)
+            {
+                allyDialogueRoot.SetActive(false);
+            }
+            RestoreMoralChoiceButtonVisuals();
             ResetTransientEffects();
             SetAllActionButtons(false);
         }
@@ -382,6 +504,11 @@ namespace Veyra.Combat.Encounter
 
         private void InitializeBattle()
         {
+            HeroCombatStats heroStats = HeroProgressStore.GetCombatStats();
+            heroMaxHp = heroStats.MaxHp;
+            attackDamage = heroStats.AttackDamage;
+            techniqueDamage = heroStats.TechniqueDamage;
+
             EncounterRules rules = new EncounterRules(
                 heroMaxHp,
                 enemyMaxHp,
@@ -390,7 +517,9 @@ namespace Veyra.Combat.Encounter
                 enemyAttackDamage,
                 chargedStrikeDamage,
                 techniqueCooldownTurns,
-                enemyGuardReductionPercent);
+                enemyGuardReductionPercent,
+                heroStats.AnalyzeAppliesExposed,
+                heroStats.ExposedDamagePercent);
             EnemyProfile profile = new EnemyProfile(
                 encounterId,
                 enemyDisplayName,
@@ -399,9 +528,18 @@ namespace Veyra.Combat.Encounter
                 enemyInitialMood,
                 enemyIntelligenceLevel);
 
-            enemyMemory = new EnemyMemory(techniqueCooldownTurns, 6);
+            AdaptiveEnemyTuning learningTuning = AdaptiveEnemyTuning.Normalize(
+                adaptiveLearningTuning);
+            enemyMemory = new EnemyMemory(
+                techniqueCooldownTurns,
+                EnemyMemory.DefaultCapacity,
+                learningTuning);
             battleState = new EncounterBattleState(rules, profile, enemyMemory);
-            enemyBrain = new AdaptiveEnemyBrain(enemyIntelligenceLevel, enemyRandomSeed);
+            SeedEnemyMemoryFromCampaign();
+            enemyBrain = new AdaptiveEnemyBrain(
+                enemyIntelligenceLevel,
+                enemyRandomSeed,
+                learningTuning);
 
             actionRunning = false;
             analyzePanelOpen = false;
@@ -411,21 +549,53 @@ namespace Veyra.Combat.Encounter
             pendingAnalyzeDialogue = string.Empty;
             lowHpDialogueShown = false;
             announcedPatternKey = string.Empty;
+            rewardGrantedThisBattle = false;
+            isReplayBattle = CampaignProgressStore.TryGetEncounterResolution(
+                campaignEncounter,
+                out previousResolution);
+            replayChoiceChanged = false;
+            completedHeroTurns = 0;
             spokenActionReactions.Clear();
 
             ResetPersistentVisuals();
+            RestoreMoralChoiceButtonVisuals();
             analyzePanel.SetActive(false);
             finalChoicePanel.SetActive(false);
             confirmationPanel.SetActive(false);
             outcomeOverlay.SetActive(false);
             enemyDialogueRoot.SetActive(false);
+            if (allyDialogueRoot != null)
+            {
+                allyDialogueRoot.SetActive(false);
+            }
+
+            if (thornGuardianSupportEffect != null)
+            {
+                thornGuardianSupportEffect.SetActive(false);
+            }
             predictionFeedbackText.text = string.Empty;
             outcomeMenuButton.interactable = true;
+            if (outcomeContinueButton != null)
+            {
+                outcomeContinueButton.gameObject.SetActive(false);
+                outcomeContinueButton.interactable = false;
+            }
+            if (outcomeRetryButton != null)
+            {
+                outcomeRetryButton.gameObject.SetActive(false);
+                outcomeRetryButton.interactable = false;
+            }
 
             PlanNextIntent();
             UpdateHudImmediate();
+            heroWorldHealthBar?.SetHealthSilently(battleState.HeroHp, battleState.HeroMaxHp);
+            enemyWorldHealthBar?.SetHealthSilently(battleState.EnemyHp, battleState.EnemyMaxHp);
+            enemyWorldDialogue?.HideImmediate();
+            allyWorldDialogue?.HideImmediate();
+            SetPhase("TUO TURNO · SCEGLI UN'AZIONE");
             combatMessage.text = "Osserva l'intenzione nemica e scegli la tua azione";
             ShowEnemyDialogue(openingDialogue);
+            ConfigureSavedAllySupport();
             RefreshActionButtons();
         }
 
@@ -452,6 +622,7 @@ namespace Veyra.Combat.Encounter
 
             EnemyIntent intentLockedBeforeInput = enemyBrain.LockedIntent.Value;
             actionRunning = true;
+            SetPhase("AZIONE DI HERO01");
             SetAllActionButtons(false);
             StartCoroutine(ResolveTurn(action, intentLockedBeforeInput));
         }
@@ -478,6 +649,8 @@ namespace Veyra.Combat.Encounter
                 yield break;
             }
 
+            CampaignProgressStore.TryRecordPlayerAction(action.ToString());
+
             if (!enemyBrain.HasLockedIntent || enemyBrain.LockedIntent != lockedIntent)
             {
                 Debug.LogError(
@@ -487,9 +660,13 @@ namespace Veyra.Combat.Encounter
 
             if (action == EncounterAction.Attack || action == EncounterAction.Technique)
             {
+                enemyWorldHealthBar?.ShowDamage(
+                    enemyHpBefore,
+                    battleState.EnemyHp,
+                    battleState.EnemyMaxHp);
                 if (playerResult.EnemyGuardReducedDamage)
                 {
-                    combatMessage.text = "GUARDIA DI CORTECCIA: danno ridotto";
+                    combatMessage.text = "GUARDIA DI CORTECCIA · COLPO BLOCCATO · 0 DANNI";
                     enemyGuardVisual.SetActive(true);
                     yield return PulseScale(
                         enemyGuardVisual,
@@ -523,6 +700,9 @@ namespace Veyra.Combat.Encounter
                 yield break;
             }
 
+            completedHeroTurns++;
+            yield return ResolveSavedAllySupportIfReady();
+
             UpdateAdaptiveFeedback();
 
             if (!lowHpDialogueShown && battleState.EnemyHp <=
@@ -543,31 +723,13 @@ namespace Veyra.Combat.Encounter
             {
                 case EncounterAction.Attack:
                     combatMessage.text = "Hero01 attacca";
-                    yield return MoveActor(
-                        heroActor,
-                        heroBasePosition,
-                        heroBasePosition + Vector3.right * 0.68f,
-                        0.15f);
-                    yield return MoveEffect(
-                        heroBasicProjectile,
-                        heroProjectileOrigin.position,
-                        enemyHitTarget.position,
-                        0.24f);
+                    if (heroCombatPresentation != null)
+                        yield return heroCombatPresentation.PlayMelee(enemyActor, false);
                     break;
                 case EncounterAction.Technique:
                     combatMessage.text = "Hero01 usa Tecnica";
-                    yield return MoveActor(
-                        heroActor,
-                        heroBasePosition,
-                        heroBasePosition + Vector3.right * 0.56f,
-                        0.15f);
-                    heroTechniqueProjectile.transform.localScale =
-                        heroTechniqueProjectileBaseScale * 1.25f;
-                    yield return MoveEffect(
-                        heroTechniqueProjectile,
-                        heroProjectileOrigin.position,
-                        enemyHitTarget.position,
-                        0.36f);
+                    if (heroCombatPresentation != null)
+                        yield return heroCombatPresentation.PlayMelee(enemyActor, true);
                     break;
                 case EncounterAction.Guard:
                     combatMessage.text = "Hero01 prepara Guardia";
@@ -578,6 +740,7 @@ namespace Veyra.Combat.Encounter
 
         private IEnumerator ResolveEnemyTurn(EnemyIntent lockedIntent)
         {
+            SetPhase("TURNO NEMICO");
             if (!enemyBrain.HasLockedIntent || enemyBrain.LockedIntent != lockedIntent)
             {
                 Debug.LogError("[Veyra Encounter] Intenzione nemica non valida al turno nemico.", this);
@@ -623,6 +786,11 @@ namespace Veyra.Combat.Encounter
 
             enemyBrain.CompleteLockedIntent();
 
+            heroWorldHealthBar?.ShowDamage(
+                heroHpBefore,
+                battleState.HeroHp,
+                battleState.HeroMaxHp);
+
             if (lockedIntent == EnemyIntent.Attack || lockedIntent == EnemyIntent.ChargedStrike)
             {
                 if (enemyResult.BlockedByGuard)
@@ -661,14 +829,30 @@ namespace Veyra.Combat.Encounter
                 yield break;
             }
 
+            if (thornGuardianSupport != null &&
+                thornGuardianSupport.TryGetHeroDifficultyDialogue(
+                    battleState.HeroHp,
+                    battleState.HeroMaxHp,
+                    out SavedAllyDialogueLine difficultyLine))
+            {
+                ShowAllyDialogue(difficultyLine.Text);
+            }
+
             PlanNextIntent();
             actionRunning = false;
+            analyzeUsedThisTurn = false;
+            if (battlefield != null)
+            {
+                battlefield.BeginHeroTurn();
+            }
+            SetPhase("TUO TURNO · SCEGLI UN'AZIONE");
             combatMessage.text = "Scegli la tua azione";
             RefreshActionButtons();
         }
 
         private IEnumerator AnimateEnemyStrike(float movementMultiplier, float projectileDuration)
         {
+            enemyBasePosition = enemyActor.localPosition;
             yield return MoveActor(
                 enemyActor,
                 enemyBasePosition,
@@ -679,6 +863,166 @@ namespace Veyra.Combat.Encounter
                 enemyProjectileOrigin.position,
                 heroHitTarget.position,
                 projectileDuration);
+        }
+
+        private IEnumerator ResolvePassedTurn(EnemyIntent lockedIntent)
+        {
+            combatMessage.text = "Hero01 passa il turno";
+            yield return ResolveEnemyTurn(lockedIntent);
+        }
+
+        private void ConfigureSavedAllySupport()
+        {
+            CampaignProgressData progress = CampaignProgressStore.Load();
+            bool shouldAppear = campaignEncounter == CampaignEncounter.AshWatcher &&
+                                CampaignProgressStore.TryGetEnemyResolution(
+                                    progress,
+                                    CampaignContentIds.Level02ThornGuardian,
+                                    CampaignContentIds.ThornGuardianEnemy,
+                                    out EncounterResolution guardianResolution) &&
+                                guardianResolution == EncounterResolution.Saved;
+            if (thornGuardianAllyActor != null)
+            {
+                thornGuardianAllyActor.SetActive(shouldAppear);
+            }
+
+            thornGuardianSupport = shouldAppear
+                ? new SavedAllySupport(SavedAllySupportCatalog.CreateThornGuardian())
+                : null;
+            if (thornGuardianSupport != null &&
+                thornGuardianSupport.TryGetOpeningDialogue(out SavedAllyDialogueLine openingLine))
+            {
+                ShowAllyDialogue(openingLine.Text);
+            }
+        }
+
+        private void SeedEnemyMemoryFromCampaign()
+        {
+            if (enemyMemory == null ||
+                !CampaignProgressStore.CanEnemiesUsePlayerProfile((int)campaignEncounter))
+            {
+                return;
+            }
+
+            PlayerActionProfileSnapshot profile = CampaignProgressStore.GetPlayerActionProfile();
+            int firstIndex = Mathf.Max(0, profile.RecentActions.Count - enemyMemory.Capacity);
+            for (int index = firstIndex; index < profile.RecentActions.Count; index++)
+            {
+                switch (profile.RecentActions[index])
+                {
+                    case PlayerCombatAction.Attack:
+                        enemyMemory.RecordCompletedAction(EncounterAction.Attack);
+                        break;
+                    case PlayerCombatAction.Guard:
+                        enemyMemory.RecordCompletedAction(EncounterAction.Guard);
+                        break;
+                    case PlayerCombatAction.Technique:
+                        enemyMemory.RecordCompletedAction(EncounterAction.Technique);
+                        break;
+                    case PlayerCombatAction.Analyze:
+                        enemyMemory.RecordAnalyze();
+                        break;
+                }
+            }
+        }
+
+        private IEnumerator ResolveSavedAllySupportIfReady()
+        {
+            if (thornGuardianSupport == null || battleState == null || battleState.EnemyDefeated)
+            {
+                yield break;
+            }
+
+            SavedAllyTargetSnapshot[] targets =
+            {
+                new SavedAllyTargetSnapshot(
+                    encounterId,
+                    0,
+                    battleState.EnemyHp,
+                    battleState.EnemyMaxHp)
+            };
+            if (!thornGuardianSupport.TryIntervene(
+                    completedHeroTurns,
+                    targets,
+                    out SavedAllySupportAction supportAction))
+            {
+                yield break;
+            }
+
+            int enemyHpBefore = battleState.EnemyHp;
+            int appliedDamage = battleState.ApplyExternalNonLethalDamage(supportAction.AppliedDamage);
+            enemyWorldHealthBar?.ShowDamage(
+                enemyHpBefore,
+                battleState.EnemyHp,
+                battleState.EnemyMaxHp);
+            combatMessage.text = supportAction.AllyDisplayName + " usa " +
+                                 supportAction.AttackDisplayName + " · " + appliedDamage + " danni";
+            if (supportAction.HasDialogue)
+            {
+                ShowAllyDialogue(supportAction.Dialogue);
+            }
+
+            if (thornGuardianSupportEffect != null)
+            {
+                thornGuardianSupportEffect.SetActive(true);
+                yield return PulseScale(
+                    thornGuardianSupportEffect,
+                    thornGuardianSupportBaseScale,
+                    1.42f,
+                    0.38f);
+                thornGuardianSupportEffect.SetActive(false);
+            }
+
+            yield return Flash(enemyVisual, new Color(0.68f, 1f, 0.62f, 1f), 0.15f);
+            yield return AnimateHealth(
+                enemyHealthFill,
+                enemyHealthValue,
+                enemyHpBefore,
+                battleState.EnemyHp,
+                battleState.EnemyMaxHp,
+                0.22f);
+            UpdateHudImmediate();
+            yield return new WaitForSecondsRealtime(0.22f);
+        }
+
+        private void ShowAllyDialogue(string dialogue)
+        {
+            if (string.IsNullOrWhiteSpace(dialogue))
+            {
+                return;
+            }
+
+            if (allyWorldDialogue != null)
+            {
+                allyWorldDialogue.ShowDialogue("ALLEATO SALVATO", dialogue);
+                if (allyDialogueRoot != null) allyDialogueRoot.SetActive(false);
+                return;
+            }
+
+            if (allyDialogueRoot == null || allyDialogueText == null)
+            {
+                return;
+            }
+
+            if (allyDialogueHideRoutine != null)
+            {
+                StopCoroutine(allyDialogueHideRoutine);
+            }
+
+            allyDialogueText.text = dialogue;
+            allyDialogueRoot.SetActive(true);
+            allyDialogueHideRoutine = StartCoroutine(HideAllyDialogueAfterDelay());
+        }
+
+        private IEnumerator HideAllyDialogueAfterDelay()
+        {
+            yield return new WaitForSecondsRealtime(DialogueVisibleSeconds);
+            if (allyDialogueRoot != null)
+            {
+                allyDialogueRoot.SetActive(false);
+            }
+
+            allyDialogueHideRoutine = null;
         }
 
         private void PlanNextIntent()
@@ -695,7 +1039,7 @@ namespace Veyra.Combat.Encounter
 
         private void UpdateAdaptiveFeedback()
         {
-            if (enemyIntelligenceLevel < 2 || enemyMemory.CompletedActions.Count < 2)
+            if (!enemyMemory.HasEnoughObservationsForVisibleLearning(enemyIntelligenceLevel))
             {
                 return;
             }
@@ -709,8 +1053,7 @@ namespace Veyra.Combat.Encounter
                 return;
             }
 
-            if (enemyMemory.LastCompletedAction == EncounterAction.Attack &&
-                enemyMemory.ConsecutiveCount >= 3)
+            if (enemyMemory.HasConsecutiveActionPattern(EncounterAction.Attack))
             {
                 AnnouncePattern(
                     "attack",
@@ -719,8 +1062,7 @@ namespace Veyra.Combat.Encounter
                 return;
             }
 
-            if (enemyMemory.LastCompletedAction == EncounterAction.Guard &&
-                enemyMemory.ConsecutiveCount >= 3)
+            if (enemyMemory.HasConsecutiveActionPattern(EncounterAction.Guard))
             {
                 AnnouncePattern(
                     "guard",
@@ -763,13 +1105,21 @@ namespace Veyra.Combat.Encounter
             finalChoiceOpen = false;
             saveButton.interactable = false;
             killButton.interactable = false;
-            confirmationText.text = save
+            RestoreMoralChoiceButtonVisuals();
+            EncounterResolution nextResolution = save
+                ? EncounterResolution.Saved
+                : EncounterResolution.Killed;
+            string changeWarning = isReplayBattle && previousResolution != nextResolution
+                ? "\n\nQUESTA DECISIONE MODIFICHERÀ LA STORIA SALVATA."
+                : string.Empty;
+            confirmationText.text = (save
                 ? "Vuoi tentare di salvare " + enemyDisplayName + "?"
-                : "Vuoi uccidere " + enemyDisplayName + "?";
+                : "Vuoi uccidere " + enemyDisplayName + "?") + changeWarning;
             confirmationConfirmButton.interactable = true;
             confirmationBackButton.interactable = true;
             confirmationPanel.SetActive(true);
             confirmationOpen = true;
+            SetPhase("CONFERMA LA DECISIONE");
         }
 
         private void EnterFinalChoice()
@@ -782,19 +1132,35 @@ namespace Veyra.Combat.Encounter
             confirmationOpen = false;
             pendingSaveChoice = null;
             predictionFeedbackText.text = string.Empty;
-            intentText.text = "INTENZIONE\nNESSUNA";
-            finalChoiceTitleText.text = "SCELTA FINALE";
-            finalChoiceDialogueText.text = defeatedDialogue;
+            intentText.text = "INTENZIONE\nNESSUNA · INCAPACITATO";
+            SetPhase("DECIDI IL SUO DESTINO");
+
+            finalChoiceTitleText.text = "DECIDI IL SUO DESTINO";
+            finalChoicePortrait.sprite = enemyVisual.sprite;
+            finalChoicePortrait.color = enemyVisual.color;
+            finalChoicePortrait.preserveAspect = true;
+            string profile = enemyDisplayName.ToUpperInvariant() +
+                             "\nRAZZA · " + enemyRace +
+                             "\nCORRUZIONE · " + battleState.CorruptionPercent + "%" +
+                             "\nSTATO · " + GetMoodLabel(battleState.Mood);
+            string replayNotice = isReplayBattle
+                ? "\n\nESITO REGISTRATO: " + GetResolutionLabel(previousResolution) +
+                  "\nPuoi mantenerlo oppure cambiare la storia."
+                : string.Empty;
+            finalChoiceDialogueText.text =
+                profile + "\n\n" + defeatedDialogue + replayNotice + MoralConsequencesText;
             saveButton.interactable = true;
             killButton.interactable = true;
             finalChoicePanel.SetActive(true);
             finalChoiceOpen = true;
-            combatMessage.text = "NEMICO SCONFITTO";
+            RefreshRecordedMoralChoiceVisual();
+            combatMessage.text = "NEMICO INCAPACITATO";
             ShowEnemyDialogue(defeatedDialogue);
+            TryShowSavedAllyEndingDialogue();
             UpdateHudImmediate();
         }
 
-        private IEnumerator ShowNarrativeOutcome(bool save)
+        private IEnumerator ShowNarrativeOutcome(bool save, bool isReplay = false)
         {
             ResetTransientEffects();
             SetAllActionButtons(false);
@@ -804,7 +1170,11 @@ namespace Veyra.Combat.Encounter
             {
                 dialogue = savedDialogue;
                 savedVisual.SetActive(true);
-                yield return PulseScale(savedVisual, savedVisualBaseScale, 1.32f, 0.55f);
+                if (!isReplay)
+                {
+                    yield return PulseScale(savedVisual, savedVisualBaseScale, 1.32f, 0.55f);
+                }
+
                 enemyVisual.color = enemyBaseColor;
                 outcomeText.text = "NEMICO SALVATO";
             }
@@ -812,7 +1182,11 @@ namespace Veyra.Combat.Encounter
             {
                 dialogue = killedDialogue;
                 killedVisual.SetActive(true);
-                yield return PulseScale(killedVisual, killedVisualBaseScale, 1.18f, 0.45f);
+                if (!isReplay)
+                {
+                    yield return PulseScale(killedVisual, killedVisualBaseScale, 1.18f, 0.45f);
+                }
+
                 enemyVisual.color = new Color(
                     enemyBaseColor.r * 0.45f,
                     enemyBaseColor.g * 0.45f,
@@ -822,13 +1196,64 @@ namespace Veyra.Combat.Encounter
             }
 
             actionRunning = false;
-            outcomeDialogueText.text = dialogue;
+            if (isReplay)
+            {
+                outcomeText.text = "RIVINCITA COMPLETATA\n" +
+                                   (save ? "NEMICO SALVATO" : "NEMICO UCCISO");
+                outcomeDialogueText.text = dialogue +
+                                           (replayChoiceChanged
+                                               ? "\n\nLa storia salvata è stata aggiornata."
+                                               : "\n\nHai mantenuto la decisione registrata.");
+            }
+            else
+            {
+                outcomeDialogueText.text = dialogue;
+            }
+
+            bool canContinue = campaignEncounter == CampaignEncounter.ThornGuardian ||
+                               campaignEncounter == CampaignEncounter.AshWatcher;
+            if (outcomeContinueButton != null)
+            {
+                outcomeContinueButton.gameObject.SetActive(canContinue);
+                outcomeContinueButton.interactable = canContinue;
+            }
+
+            if (outcomeProgressText != null)
+            {
+                int rewardExperience = CampaignLevelCatalog
+                    .GetByNumber((int)campaignEncounter)
+                    .ExperienceReward;
+                outcomeProgressText.text = !rewardGrantedThisBattle
+                    ? "RICOMPENSE GIÀ OTTENUTE  -  " +
+                      (replayChoiceChanged ? "STORIA AGGIORNATA" : "SCELTA CONFERMATA")
+                    : campaignEncounter == CampaignEncounter.AshWatcher
+                        ? "+" + rewardExperience + " XP  -  HERO01 LIVELLO 3\n" +
+                          "POTENZIAMENTO DISPONIBILE NEL MENU EROI"
+                        : "+" + rewardExperience + " XP  -  LIVELLO 3 SBLOCCATO";
+            }
+
+            if (campaignEncounter == CampaignEncounter.AshWatcher && rewardGrantedThisBattle)
+            {
+                outcomeText.text = "LIVELLO EROE AUMENTATO";
+            }
             outcomeMenuButton.interactable = true;
+            if (outcomeRetryButton != null)
+            {
+                outcomeRetryButton.gameObject.SetActive(false);
+                outcomeRetryButton.interactable = false;
+            }
             outcomeOverlay.SetActive(true);
-            combatMessage.text = save ? "La corruzione è stata purificata" : "La scelta è definitiva";
-            ShowEnemyDialogue(dialogue);
+            combatMessage.text = isReplay
+                ? (replayChoiceChanged ? "Storia aggiornata: " : "Scelta confermata: ") +
+                  (save ? "SALVATO" : "UCCISO")
+                : save ? "La corruzione è stata purificata" : "La scelta è definitiva";
+            ShowEnemyDialogue(isReplay
+                ? replayChoiceChanged
+                    ? "La storia ricorderà questa nuova decisione."
+                    : "Hai confermato la decisione già registrata."
+                : dialogue);
+            SetPhase("VITTORIA");
             UpdateHudImmediate();
-            StartCoroutine(ReturnToMenuAfterDelay());
         }
 
         private void ShowHeroDefeat()
@@ -841,23 +1266,57 @@ namespace Veyra.Combat.Encounter
             finalChoiceOpen = false;
             confirmationPanel.SetActive(false);
             confirmationOpen = false;
+            RestoreMoralChoiceButtonVisuals();
             intentText.text = "INTENZIONE\nNESSUNA";
             outcomeText.text = "SCONFITTA";
             outcomeDialogueText.text = "Hero01 non puo piu combattere.";
+            if (outcomeProgressText != null)
+            {
+                outcomeProgressText.text = "Nessun XP ottenuto";
+            }
+
+            if (outcomeContinueButton != null)
+            {
+                outcomeContinueButton.gameObject.SetActive(false);
+                outcomeContinueButton.interactable = false;
+            }
+            if (outcomeRetryButton != null)
+            {
+                outcomeRetryButton.gameObject.SetActive(true);
+                outcomeRetryButton.interactable = true;
+            }
             outcomeMenuButton.interactable = true;
             outcomeOverlay.SetActive(true);
             combatMessage.text = "SCONFITTA";
+            SetPhase("SCONFITTA");
+            TryShowSavedAllyEndingDialogue();
             UpdateHudImmediate();
-            StartCoroutine(ReturnToMenuAfterDelay());
+        }
+
+        private void TryShowSavedAllyEndingDialogue()
+        {
+            if (thornGuardianSupport != null &&
+                thornGuardianSupport.TryGetEndingDialogue(out SavedAllyDialogueLine line))
+            {
+                ShowAllyDialogue(line.Text);
+            }
         }
 
         private void RecordCampaignResolution(bool save)
         {
             try
             {
-                CampaignProgressStore.RecordEncounterResolution(
+                LevelDefinition level = CampaignLevelCatalog.GetByNumber((int)campaignEncounter);
+                bool rewardWasClaimed = CampaignProgressStore.IsLevelRewardClaimed(level.StableId);
+                CampaignProgressStore.SetEncounterResolution(
                     campaignEncounter,
                     save ? EncounterResolution.Saved : EncounterResolution.Killed);
+                rewardGrantedThisBattle = !rewardWasClaimed &&
+                                          CampaignProgressStore.IsLevelRewardClaimed(level.StableId);
+                previousResolution = save
+                    ? EncounterResolution.Saved
+                    : EncounterResolution.Killed;
+                isReplayBattle = true;
             }
             catch (Exception exception)
             {
@@ -901,6 +1360,17 @@ namespace Veyra.Combat.Encounter
                 return;
             }
 
+            if (enemyWorldDialogue != null)
+            {
+                enemyWorldDialogue.ShowDialogue(enemyDisplayName, dialogue);
+                if (enemyDialogueRoot != null) enemyDialogueRoot.SetActive(false);
+                if (combatMessage != null)
+                {
+                    combatMessage.text = enemyDisplayName + ": " + dialogue;
+                }
+                return;
+            }
+
             if (dialogueHideRoutine != null)
             {
                 StopCoroutine(dialogueHideRoutine);
@@ -934,7 +1404,10 @@ namespace Veyra.Combat.Encounter
             analyzeCorruptionText.text = "CORRUZIONE\n" + battleState.CorruptionPercent + "%";
             analyzeMoodText.text = "STATO ATTUALE\n" + GetMoodLabel(battleState.Mood);
             analyzeTendencyText.text = "TENDENZA\n" + GetTendencyDescription();
-            analyzeIntentText.text = "MOSSA ANNUNCIATA\n" + GetIntentLabel(CurrentEnemyIntent);
+            analyzeIntentText.text = "MOSSA ANNUNCIATA\n" + GetIntentLabel(CurrentEnemyIntent) +
+                                     (battleState.IsEnemyExposed
+                                         ? "\nESPOSTO · PROSSIMO DANNO +25%"
+                                         : string.Empty);
         }
 
         private string GetTendencyDescription()
@@ -1014,6 +1487,27 @@ namespace Veyra.Combat.Encounter
             }
         }
 
+        private static string GetResolutionLabel(EncounterResolution resolution)
+        {
+            switch (resolution)
+            {
+                case EncounterResolution.Saved:
+                    return "SALVATO";
+                case EncounterResolution.Killed:
+                    return "UCCISO";
+                default:
+                    return "NON DECISO";
+            }
+        }
+
+        private void SetPhase(string value)
+        {
+            if (phaseText != null)
+            {
+                phaseText.text = value;
+            }
+        }
+
         private void UpdateHudImmediate()
         {
             if (battleState == null)
@@ -1039,8 +1533,9 @@ namespace Veyra.Combat.Encounter
             statusText.text = "EROE: " + heroState + "\nNEMICO: " + enemyState;
 
             techniqueButtonLabel.text = battleState.TechniqueCooldownRemaining == 0
-                ? "TECNICA"
-                : "TECNICA\n" + battleState.TechniqueCooldownRemaining +
+                ? "TECNICA · DANNO " + techniqueDamage + " · PORTATA 2\nPRONTA"
+                : "TECNICA · DANNO " + techniqueDamage + " · PORTATA 2\nRICARICA " +
+                  battleState.TechniqueCooldownRemaining +
                   (battleState.TechniqueCooldownRemaining == 1 ? " TURNO" : " TURNI");
 
             PopulateAnalyzePanel();
@@ -1053,7 +1548,8 @@ namespace Veyra.Combat.Encounter
             guardButton.interactable = canAct && battleState.CanUsePlayerAction(EncounterAction.Guard);
             techniqueButton.interactable =
                 canAct && battleState.CanUsePlayerAction(EncounterAction.Technique);
-            analyzeButton.interactable = canAct && battleState.CanUsePlayerAction(EncounterAction.Analyze);
+            analyzeButton.interactable = canAct && !analyzeUsedThisTurn &&
+                                         battleState.CanUsePlayerAction(EncounterAction.Analyze);
         }
 
         private void SetAllActionButtons(bool enabledForInput)
@@ -1085,6 +1581,13 @@ namespace Veyra.Combat.Encounter
             enemyChargeBaseScale = enemyChargeVisual.transform.localScale;
             savedVisualBaseScale = savedVisual.transform.localScale;
             killedVisualBaseScale = killedVisual.transform.localScale;
+            saveButtonNeutralColors = saveButton.colors;
+            killButtonNeutralColors = killButton.colors;
+            saveButtonNeutralScale = saveButton.transform.localScale;
+            killButtonNeutralScale = killButton.transform.localScale;
+            thornGuardianSupportBaseScale = thornGuardianSupportEffect != null
+                ? thornGuardianSupportEffect.transform.localScale
+                : Vector3.one;
         }
 
         private void ResetPersistentVisuals()
@@ -1102,6 +1605,56 @@ namespace Veyra.Combat.Encounter
             savedVisual.transform.localScale = savedVisualBaseScale;
             killedVisual.transform.localScale = killedVisualBaseScale;
             ResetTransientEffects();
+        }
+
+        private void RefreshRecordedMoralChoiceVisual()
+        {
+            RestoreMoralChoiceButtonVisuals();
+
+            if (!isReplayBattle)
+            {
+                return;
+            }
+
+            if (previousResolution == EncounterResolution.Saved)
+            {
+                ApplyRecordedChoiceStyle(
+                    saveButton,
+                    saveButtonNeutralColors,
+                    saveButtonNeutralScale,
+                    RecordedSaveColor);
+            }
+            else if (previousResolution == EncounterResolution.Killed)
+            {
+                ApplyRecordedChoiceStyle(
+                    killButton,
+                    killButtonNeutralColors,
+                    killButtonNeutralScale,
+                    RecordedKillColor);
+            }
+        }
+
+        private void RestoreMoralChoiceButtonVisuals()
+        {
+            saveButton.colors = saveButtonNeutralColors;
+            killButton.colors = killButtonNeutralColors;
+            saveButton.transform.localScale = saveButtonNeutralScale;
+            killButton.transform.localScale = killButtonNeutralScale;
+        }
+
+        private static void ApplyRecordedChoiceStyle(
+            Button button,
+            ColorBlock neutralColors,
+            Vector3 neutralScale,
+            Color recordedColor)
+        {
+            ColorBlock colors = neutralColors;
+            colors.normalColor = recordedColor;
+            colors.highlightedColor = Color.Lerp(recordedColor, Color.white, 0.18f);
+            colors.selectedColor = colors.highlightedColor;
+            colors.pressedColor = Color.Lerp(recordedColor, Color.black, 0.12f);
+            button.colors = colors;
+            button.transform.localScale = neutralScale * RecordedChoiceScale;
         }
 
         private void ApplyPersistentCombatEffects()
@@ -1122,6 +1675,11 @@ namespace Veyra.Combat.Encounter
             heroBasicProjectile.SetActive(false);
             heroTechniqueProjectile.SetActive(false);
             enemyProjectile.SetActive(false);
+            if (thornGuardianSupportEffect != null)
+            {
+                thornGuardianSupportEffect.transform.localScale = thornGuardianSupportBaseScale;
+                thornGuardianSupportEffect.SetActive(false);
+            }
             heroGuardVisual.SetActive(false);
             enemyGuardVisual.SetActive(false);
             enemyChargeVisual.SetActive(false);
@@ -1131,7 +1689,6 @@ namespace Veyra.Combat.Encounter
 
         private void ResetActorPositions()
         {
-            heroActor.localPosition = heroBasePosition;
             enemyActor.localPosition = enemyBasePosition;
         }
 
@@ -1139,7 +1696,8 @@ namespace Veyra.Combat.Encounter
         {
             bool valid = attackButton != null && guardButton != null && techniqueButton != null &&
                          analyzeButton != null && techniqueButtonLabel != null &&
-                         combatMessage != null && intentText != null && statusText != null &&
+                         combatMessage != null && phaseText != null && intentText != null &&
+                         statusText != null &&
                          predictionFeedbackText != null && heroHealthFill != null &&
                          enemyHealthFill != null && heroHealthValue != null &&
                          enemyHealthValue != null && enemyDialogueRoot != null &&
@@ -1155,12 +1713,14 @@ namespace Veyra.Combat.Encounter
                          analyzeCorruptionText != null && analyzeMoodText != null &&
                          analyzeTendencyText != null && analyzeIntentText != null &&
                          analyzeCloseButton != null && finalChoicePanel != null &&
-                         finalChoiceTitleText != null && finalChoiceDialogueText != null &&
+                         finalChoiceTitleText != null && finalChoicePortrait != null &&
+                         finalChoiceDialogueText != null &&
                          saveButton != null && killButton != null && confirmationPanel != null &&
                          confirmationText != null && confirmationConfirmButton != null &&
                          confirmationBackButton != null && outcomeOverlay != null &&
                          outcomeText != null && outcomeDialogueText != null &&
-                         outcomeMenuButton != null && navigation != null;
+                         outcomeMenuButton != null && outcomeRetryButton != null &&
+                         navigation != null;
 
             if (!valid)
             {

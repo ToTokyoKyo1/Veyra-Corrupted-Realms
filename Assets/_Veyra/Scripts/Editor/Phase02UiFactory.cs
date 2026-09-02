@@ -14,16 +14,16 @@ namespace Veyra.Editor
 {
     internal static class Phase02UiFactory
     {
-        internal static readonly Color Background = Html("#0B1715");
-        internal static readonly Color Panel = Html("#142622");
-        internal static readonly Color HighlightedPanel = Html("#1D3731");
-        internal static readonly Color Cyan = Html("#59D7D0");
-        internal static readonly Color Light = Html("#B9FFF0");
-        internal static readonly Color Corruption = Html("#8F4AC7");
-        internal static readonly Color MainText = Html("#F3F7F4");
-        internal static readonly Color SecondaryText = Html("#A9BBB5");
-        internal static readonly Color Error = Html("#E85C65");
-        internal static readonly Color Gold = Html("#D5AE62");
+        internal static readonly Color Background = Html("#090B15");
+        internal static readonly Color Panel = Html("#14182E");
+        internal static readonly Color HighlightedPanel = Html("#2C354D");
+        internal static readonly Color Cyan = Html("#92E8C0");
+        internal static readonly Color Light = Html("#F5FFE8");
+        internal static readonly Color Corruption = Html("#692464");
+        internal static readonly Color MainText = Html("#F5FFE8");
+        internal static readonly Color SecondaryText = Html("#A3A7C2");
+        internal static readonly Color Error = Html("#AD2F45");
+        internal static readonly Color Gold = Html("#FFAE70");
 
         internal static TMP_FontAsset LoadRequiredFont()
         {
@@ -171,9 +171,30 @@ namespace Veyra.Editor
             text.alignment = alignment;
             text.fontStyle = style;
             text.textWrappingMode = TextWrappingModes.Normal;
-            text.overflowMode = TextOverflowModes.Ellipsis;
+            // The prototype font does not contain U+2026. Truncate explicitly so
+            // TextMesh Pro does not emit one warning per label while loading scenes.
+            text.overflowMode = TextOverflowModes.Truncate;
             text.raycastTarget = false;
             return text;
+        }
+
+        internal static void NormalizeTextOverflow(Transform root)
+        {
+            if (root == null)
+            {
+                return;
+            }
+
+            TMP_Text[] texts = root.GetComponentsInChildren<TMP_Text>(true);
+            for (int index = 0; index < texts.Length; index++)
+            {
+                TMP_Text text = texts[index];
+                if (text.overflowMode == TextOverflowModes.Ellipsis)
+                {
+                    text.overflowMode = TextOverflowModes.Truncate;
+                    EditorUtility.SetDirty(text);
+                }
+            }
         }
 
         internal static Button CreateButton(
@@ -190,7 +211,10 @@ namespace Veyra.Editor
             RectTransform rect = CreateRect(name, parent);
             SetRect(rect, anchorMin, anchorMax, offsetMin, offsetMax);
             Image image = rect.gameObject.AddComponent<Image>();
-            image.color = primary ? Cyan : HighlightedPanel;
+            Sprite frame = VeyraVisualAssetSetup.LoadButtonFrame(primary);
+            image.sprite = frame;
+            image.type = frame != null ? Image.Type.Sliced : Image.Type.Simple;
+            image.color = frame != null ? Color.white : (primary ? Gold : HighlightedPanel);
             image.raycastTarget = true;
 
             Button button = rect.gameObject.AddComponent<Button>();
@@ -211,7 +235,91 @@ namespace Veyra.Editor
                 new Vector2(-22f, -12f),
                 FontStyles.Bold);
             text.textWrappingMode = TextWrappingModes.NoWrap;
+
+            Sprite icon = VeyraVisualAssetSetup.LoadUiIconForButton(name);
+            if (icon != null)
+            {
+                RectTransform iconRect = CreateRect("ICON_" + name.Substring("BTN_".Length), rect);
+                SetRect(
+                    iconRect,
+                    new Vector2(0.06f, 0.5f),
+                    new Vector2(0.06f, 0.5f),
+                    new Vector2(0f, -30f),
+                    new Vector2(60f, 30f));
+                Image iconImage = iconRect.gameObject.AddComponent<Image>();
+                iconImage.sprite = icon;
+                iconImage.preserveAspect = true;
+                iconImage.raycastTarget = false;
+                iconImage.color = MainText;
+                text.rectTransform.offsetMin = new Vector2(88f, 12f);
+            }
+
+            AudioClip clickClip = AssetDatabase.LoadAssetAtPath<AudioClip>(VeyraVisualAssetSetup.SelectSfxPath);
+            if (clickClip != null)
+            {
+                AudioSource source = rect.gameObject.AddComponent<AudioSource>();
+                source.playOnAwake = false;
+                source.loop = false;
+                source.volume = 0.24f;
+                VeyraButtonAudioFeedback feedback = rect.gameObject.AddComponent<VeyraButtonAudioFeedback>();
+                feedback.Configure(button, source, clickClip);
+            }
             return button;
+        }
+
+        internal static void ApplyProvidedButtonVisuals(Button button, bool primary = false)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            Image image = button.targetGraphic as Image ?? button.GetComponent<Image>();
+            Sprite frame = VeyraVisualAssetSetup.LoadButtonFrame(primary);
+            if (image != null && frame != null)
+            {
+                image.sprite = frame;
+                image.type = Image.Type.Sliced;
+                image.color = Color.white;
+            }
+            ConfigureButtonColors(button, primary);
+
+            Sprite icon = VeyraVisualAssetSetup.LoadUiIconForButton(button.gameObject.name);
+            if (icon != null && button.transform.Find("ICON_Provided") == null)
+            {
+                RectTransform iconRect = CreateRect("ICON_Provided", button.transform);
+                SetRect(
+                    iconRect,
+                    new Vector2(0.06f, 0.5f),
+                    new Vector2(0.06f, 0.5f),
+                    new Vector2(0f, -30f),
+                    new Vector2(60f, 30f));
+                Image iconImage = iconRect.gameObject.AddComponent<Image>();
+                iconImage.sprite = icon;
+                iconImage.preserveAspect = true;
+                iconImage.raycastTarget = false;
+                iconImage.color = MainText;
+
+                TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
+                if (label != null)
+                {
+                    label.rectTransform.offsetMin = new Vector2(88f, label.rectTransform.offsetMin.y);
+                }
+            }
+
+            if (button.GetComponent<VeyraButtonAudioFeedback>() == null)
+            {
+                AudioClip clickClip = AssetDatabase.LoadAssetAtPath<AudioClip>(VeyraVisualAssetSetup.SelectSfxPath);
+                if (clickClip != null)
+                {
+                    AudioSource source = button.gameObject.AddComponent<AudioSource>();
+                    source.playOnAwake = false;
+                    source.loop = false;
+                    source.volume = 0.24f;
+                    VeyraButtonAudioFeedback feedback = button.gameObject.AddComponent<VeyraButtonAudioFeedback>();
+                    feedback.Configure(button, source, clickClip);
+                }
+            }
         }
 
         internal static Slider CreateSlider(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax)
@@ -239,8 +347,8 @@ namespace Veyra.Editor
                 handleArea,
                 new Vector2(0f, 0.5f),
                 new Vector2(0f, 0.5f),
-                new Vector2(-32f, -32f),
-                new Vector2(32f, 32f),
+                new Vector2(-16f, -16f),
+                new Vector2(16f, 16f),
                 Light,
                 true);
 
@@ -267,8 +375,8 @@ namespace Veyra.Editor
                 root,
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
-                new Vector2(-72f, -48f),
-                new Vector2(72f, 48f),
+                new Vector2(-32f, -22f),
+                new Vector2(32f, 22f),
                 HighlightedPanel,
                 true);
             RectTransform checkmark = CreatePanel(
@@ -276,8 +384,8 @@ namespace Veyra.Editor
                 background,
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
-                new Vector2(-48f, -25f),
-                new Vector2(48f, 25f),
+                new Vector2(-22f, -13f),
+                new Vector2(22f, 13f),
                 Cyan);
 
             Toggle toggle = root.gameObject.AddComponent<Toggle>();
@@ -319,11 +427,12 @@ namespace Veyra.Editor
         private static void ConfigureButtonColors(Button button, bool primary)
         {
             ColorBlock colors = button.colors;
-            colors.normalColor = primary ? Cyan : HighlightedPanel;
-            colors.highlightedColor = primary ? Light : new Color(0.17f, 0.35f, 0.31f, 1f);
-            colors.pressedColor = primary ? new Color(0.25f, 0.67f, 0.65f, 1f) : Cyan;
-            colors.selectedColor = primary ? Light : Gold;
-            colors.disabledColor = new Color(0.25f, 0.32f, 0.30f, 0.55f);
+            bool usesAtlas = button.targetGraphic is Image target && target.sprite != null;
+            colors.normalColor = usesAtlas ? Color.white : (primary ? Gold : HighlightedPanel);
+            colors.highlightedColor = usesAtlas ? Light : (primary ? Light : Html("#404973"));
+            colors.pressedColor = usesAtlas ? Gold : (primary ? Html("#BD6A62") : Cyan);
+            colors.selectedColor = usesAtlas ? Cyan : Gold;
+            colors.disabledColor = Html("#686F99");
             colors.colorMultiplier = 1f;
             colors.fadeDuration = 0.08f;
             button.colors = colors;

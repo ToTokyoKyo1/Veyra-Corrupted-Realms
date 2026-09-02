@@ -11,12 +11,21 @@ namespace Veyra.Combat.Encounter
         private readonly List<EncounterAction> completedActions;
         private readonly ReadOnlyCollection<EncounterAction> completedActionsView;
         private readonly int techniqueCooldownTurns;
+        private readonly AdaptiveEnemyTuning tuning;
         private int completedActionCount;
         private int lastTechniqueActionIndex = -1;
         private int techniqueIntervalsObserved;
         private int immediateTechniqueUses;
 
         public EnemyMemory(int techniqueCooldownTurns = 2, int capacity = DefaultCapacity)
+            : this(techniqueCooldownTurns, capacity, null)
+        {
+        }
+
+        public EnemyMemory(
+            int techniqueCooldownTurns,
+            int capacity,
+            AdaptiveEnemyTuning tuning)
         {
             if (techniqueCooldownTurns <= 0)
             {
@@ -29,6 +38,7 @@ namespace Veyra.Combat.Encounter
             }
 
             this.techniqueCooldownTurns = techniqueCooldownTurns;
+            this.tuning = AdaptiveEnemyTuning.Normalize(tuning);
             Capacity = capacity;
             completedActions = new List<EncounterAction>(capacity);
             completedActionsView = completedActions.AsReadOnly();
@@ -41,6 +51,20 @@ namespace Veyra.Combat.Encounter
         public int CompletedActionCount => completedActionCount;
 
         public int AnalysisCount { get; private set; }
+
+        public double AnalyzeFrequency
+        {
+            get
+            {
+                long totalObservedActions = (long)AnalysisCount + completedActionCount;
+                return totalObservedActions == 0
+                    ? 0d
+                    : AnalysisCount / (double)totalObservedActions;
+            }
+        }
+
+        public bool HasFrequentAnalyzePattern =>
+            HasFrequentAnalyzePatternFor(tuning);
 
         public EncounterAction? LastCompletedAction =>
             completedActions.Count == 0
@@ -105,88 +129,141 @@ namespace Veyra.Combat.Encounter
         }
 
         public bool TendsToUseTechniqueWhenReady =>
-            techniqueIntervalsObserved > 0 &&
-            immediateTechniqueUses / (double)techniqueIntervalsObserved >= 0.6d;
+            TendsToUseTechniqueWhenReadyFor(tuning);
 
         public bool HasRecentStrategyChange
         {
             get
             {
-                if (completedActions.Count < 4)
-                {
-                    return false;
-                }
-
-                int lastIndex = completedActions.Count - 1;
-                EncounterAction latest = completedActions[lastIndex];
-
-                int precedingRun = 0;
-                EncounterAction precedingAction = completedActions[lastIndex - 1];
-                if (precedingAction != latest)
-                {
-                    for (int index = lastIndex - 1; index >= 0; index--)
-                    {
-                        if (completedActions[index] != precedingAction)
-                        {
-                            break;
-                        }
-
-                        precedingRun++;
-                    }
-
-                    if (precedingRun >= 3)
-                    {
-                        return true;
-                    }
-                }
-
-                EncounterAction recent = completedActions[lastIndex];
-                if (completedActions[lastIndex - 1] != recent)
-                {
-                    return false;
-                }
-
-                int earlierCount = lastIndex - 1;
-                int differentEarlierActions = 0;
-                for (int index = 0; index < earlierCount; index++)
-                {
-                    if (completedActions[index] != recent)
-                    {
-                        differentEarlierActions++;
-                    }
-                }
-
-                return differentEarlierActions >= 2;
+                return HasRecentStrategyChangeFor(tuning);
             }
+        }
+
+        public bool HasEnoughObservationsForVisibleLearning(int intelligenceLevel)
+        {
+            return intelligenceLevel >= tuning.MinimumIntelligenceForVisibleLearningFeedback &&
+                   (completedActions.Count >= tuning.MinimumObservedActions ||
+                    HasFrequentAnalyzePatternFor(tuning));
+        }
+
+        public bool HasRepeatedActionPattern(EncounterAction action)
+        {
+            return HasRepeatedActionPattern(action, tuning);
+        }
+
+        public bool HasConsecutiveActionPattern(EncounterAction action)
+        {
+            return LastCompletedAction == action &&
+                   ConsecutiveCount >= tuning.RepeatedActionConsecutiveThreshold;
+        }
+
+        internal bool TendsToUseTechniqueWhenReadyFor(AdaptiveEnemyTuning selectedTuning)
+        {
+            return techniqueIntervalsObserved > 0 &&
+                   immediateTechniqueUses / (double)techniqueIntervalsObserved >=
+                   selectedTuning.TechniqueRhythmThreshold;
+        }
+
+        internal bool HasRecentStrategyChangeFor(AdaptiveEnemyTuning selectedTuning)
+        {
+            if (completedActions.Count < selectedTuning.StrategyChangeMinimumHistory)
+            {
+                return false;
+            }
+
+            int lastIndex = completedActions.Count - 1;
+            EncounterAction latest = completedActions[lastIndex];
+
+            int precedingRun = 0;
+            EncounterAction precedingAction = completedActions[lastIndex - 1];
+            if (precedingAction != latest)
+            {
+                for (int index = lastIndex - 1; index >= 0; index--)
+                {
+                    if (completedActions[index] != precedingAction)
+                    {
+                        break;
+                    }
+
+                    precedingRun++;
+                }
+
+                if (precedingRun >= selectedTuning.StrategyChangePrecedingRunThreshold)
+                {
+                    return true;
+                }
+            }
+
+            EncounterAction recent = completedActions[lastIndex];
+            if (completedActions[lastIndex - 1] != recent)
+            {
+                return false;
+            }
+
+            int earlierCount = lastIndex - 1;
+            int differentEarlierActions = 0;
+            for (int index = 0; index < earlierCount; index++)
+            {
+                if (completedActions[index] != recent)
+                {
+                    differentEarlierActions++;
+                }
+            }
+
+            return differentEarlierActions >=
+                   selectedTuning.StrategyChangeDifferentEarlierActionsThreshold;
+        }
+
+        internal bool HasFrequentAnalyzePatternFor(AdaptiveEnemyTuning selectedTuning)
+        {
+            return AnalysisCount >= selectedTuning.AnalyzePatternMinimumCount &&
+                   AnalyzeFrequency >= selectedTuning.AnalyzePatternFrequencyThreshold;
+        }
+
+        internal double GetAnalyzePatternConfidence(AdaptiveEnemyTuning selectedTuning)
+        {
+            return HasFrequentAnalyzePatternFor(selectedTuning)
+                ? Clamp01(AnalyzeFrequency)
+                : 0d;
         }
 
         public double PatternConfidence
         {
             get
             {
-                if (completedActions.Count < 2)
-                {
-                    return 0d;
-                }
-
-                EncounterAction? dominant = DominantAction;
-                if (!dominant.HasValue)
-                {
-                    return 0d;
-                }
-
-                double dominance = GetFrequency(dominant.Value) / (double)completedActions.Count;
-                double repetitionBonus = ConsecutiveCount >= 3 ? 0.18d : 0d;
-                double rhythmBonus = TendsToUseTechniqueWhenReady ? 0.12d : 0d;
-                double confidence = dominance + repetitionBonus + rhythmBonus;
-
-                if (HasRecentStrategyChange)
-                {
-                    confidence *= 0.35d;
-                }
-
-                return Clamp01(confidence);
+                return GetPatternConfidence(tuning);
             }
+        }
+
+        internal double GetPatternConfidence(AdaptiveEnemyTuning selectedTuning)
+        {
+            if (completedActions.Count < selectedTuning.MinimumObservedActions)
+            {
+                return 0d;
+            }
+
+            EncounterAction? dominant = DominantAction;
+            if (!dominant.HasValue)
+            {
+                return 0d;
+            }
+
+            double dominance = GetFrequency(dominant.Value) / (double)completedActions.Count;
+            double repetitionBonus = ConsecutiveCount >=
+                                     selectedTuning.RepeatedActionConsecutiveThreshold
+                ? selectedTuning.RepetitionConfidenceBonus
+                : 0d;
+            double rhythmBonus = TendsToUseTechniqueWhenReadyFor(selectedTuning)
+                ? selectedTuning.TechniqueRhythmConfidenceBonus
+                : 0d;
+            double confidence = dominance + repetitionBonus + rhythmBonus;
+
+            if (HasRecentStrategyChangeFor(selectedTuning))
+            {
+                confidence *= selectedTuning.StrategyChangeConfidenceMultiplier;
+            }
+
+            return Clamp01(confidence);
         }
 
         public string PatternSummary
@@ -203,14 +280,19 @@ namespace Veyra.Combat.Encounter
                     return "Il giocatore usa la Tecnica appena torna disponibile.";
                 }
 
-                if (LastCompletedAction == EncounterAction.Attack && ConsecutiveCount >= 3)
+                if (HasConsecutiveActionPattern(EncounterAction.Attack))
                 {
                     return "Il giocatore ripete Attacco.";
                 }
 
-                if (LastCompletedAction == EncounterAction.Guard && ConsecutiveCount >= 3)
+                if (HasConsecutiveActionPattern(EncounterAction.Guard))
                 {
                     return "Il giocatore ripete Guardia.";
+                }
+
+                if (HasFrequentAnalyzePattern)
+                {
+                    return "Il giocatore usa spesso Analizza.";
                 }
 
                 return "Nessuna abitudine affidabile riconosciuta.";
@@ -277,6 +359,15 @@ namespace Veyra.Combat.Encounter
             }
 
             return count;
+        }
+
+        internal bool HasRepeatedActionPattern(
+            EncounterAction action,
+            AdaptiveEnemyTuning selectedTuning)
+        {
+            return LastCompletedAction == action &&
+                   (ConsecutiveCount >= selectedTuning.RepeatedActionConsecutiveThreshold ||
+                    GetFrequency(action) >= selectedTuning.RepeatedActionFrequencyThreshold);
         }
 
         public void Reset()

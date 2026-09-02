@@ -4,16 +4,27 @@ namespace Veyra.Combat.Encounter
 {
     public sealed class AdaptiveEnemyBrain
     {
-        public const double MaximumCounterProbability = 0.65d;
+        public const double MaximumCounterProbability =
+            AdaptiveEnemyTuning.AbsoluteMaximumCounterProbability;
 
         private readonly int seed;
+        private readonly AdaptiveEnemyTuning tuning;
         private Random random;
         private EnemyIntent? lockedIntent;
 
         public AdaptiveEnemyBrain(int intelligenceLevel, int seed)
+            : this(intelligenceLevel, seed, null)
+        {
+        }
+
+        public AdaptiveEnemyBrain(
+            int intelligenceLevel,
+            int seed,
+            AdaptiveEnemyTuning tuning)
         {
             IntelligenceLevel = ClampIntelligence(intelligenceLevel);
             this.seed = seed;
+            this.tuning = AdaptiveEnemyTuning.Normalize(tuning);
             random = new Random(seed);
             LastDecision = new AdaptiveDecision(EnemyIntent.Attack, LearnedPattern.None, 0d, 0d, false);
         }
@@ -49,11 +60,15 @@ namespace Veyra.Combat.Encounter
             }
 
             LearnedPattern pattern = DetectPattern(memory);
-            double confidence = IntelligenceLevel == 0 ? 0d : memory.PatternConfidence;
+            double confidence = IntelligenceLevel == 0
+                ? 0d
+                : pattern == LearnedPattern.FrequentAnalyze
+                    ? memory.GetAnalyzePatternConfidence(tuning)
+                    : memory.GetPatternConfidence(tuning);
 
             if (pattern == LearnedPattern.StrategyChanged)
             {
-                confidence *= 0.35d;
+                confidence *= tuning.StrategyChangeConfidenceMultiplier;
             }
 
             EnemyIntent adaptiveCounter;
@@ -61,6 +76,11 @@ namespace Veyra.Combat.Encounter
             double counterProbability = hasCounter
                 ? CalculateCounterProbability(confidence)
                 : 0d;
+
+            if (pattern == LearnedPattern.FrequentAnalyze)
+            {
+                counterProbability *= tuning.AnalyzeResponseProbabilityMultiplier;
+            }
 
             bool useCounter = hasCounter && random.NextDouble() < counterProbability;
             EnemyIntent intent = useCounter
@@ -101,31 +121,37 @@ namespace Veyra.Combat.Encounter
 
         private LearnedPattern DetectPattern(EnemyMemory memory)
         {
-            if (IntelligenceLevel == 0 || memory.CompletedActions.Count < 2)
+            if (IntelligenceLevel == 0)
             {
                 return LearnedPattern.None;
             }
 
-            if (memory.HasRecentStrategyChange)
+            if (memory.CompletedActions.Count >= tuning.MinimumObservedActions)
             {
-                return LearnedPattern.StrategyChanged;
+                if (memory.HasRecentStrategyChangeFor(tuning))
+                {
+                    return LearnedPattern.StrategyChanged;
+                }
+
+                if (memory.TendsToUseTechniqueWhenReadyFor(tuning))
+                {
+                    return LearnedPattern.TechniqueRhythm;
+                }
+
+                if (memory.HasRepeatedActionPattern(EncounterAction.Attack, tuning))
+                {
+                    return LearnedPattern.RepeatedAttack;
+                }
+
+                if (memory.HasRepeatedActionPattern(EncounterAction.Guard, tuning))
+                {
+                    return LearnedPattern.RepeatedGuard;
+                }
             }
 
-            if (memory.TendsToUseTechniqueWhenReady)
+            if (memory.HasFrequentAnalyzePatternFor(tuning))
             {
-                return LearnedPattern.TechniqueRhythm;
-            }
-
-            if (memory.LastCompletedAction == EncounterAction.Attack &&
-                (memory.ConsecutiveCount >= 3 || memory.GetFrequency(EncounterAction.Attack) >= 3))
-            {
-                return LearnedPattern.RepeatedAttack;
-            }
-
-            if (memory.LastCompletedAction == EncounterAction.Guard &&
-                (memory.ConsecutiveCount >= 3 || memory.GetFrequency(EncounterAction.Guard) >= 3))
-            {
-                return LearnedPattern.RepeatedGuard;
+                return LearnedPattern.FrequentAnalyze;
             }
 
             return LearnedPattern.None;
@@ -142,6 +168,9 @@ namespace Veyra.Combat.Encounter
                 case LearnedPattern.RepeatedGuard:
                     counter = EnemyIntent.Charge;
                     return true;
+                case LearnedPattern.FrequentAnalyze:
+                    counter = EnemyIntent.Guard;
+                    return true;
                 default:
                     counter = EnemyIntent.Attack;
                     return false;
@@ -150,28 +179,16 @@ namespace Veyra.Combat.Encounter
 
         private double CalculateCounterProbability(double confidence)
         {
-            double baseProbability;
-            double confidenceInfluence;
-
-            switch (IntelligenceLevel)
+            if (IntelligenceLevel == 0)
             {
-                case 1:
-                    baseProbability = 0.12d;
-                    confidenceInfluence = 0.30d;
-                    break;
-                case 2:
-                    baseProbability = 0.25d;
-                    confidenceInfluence = 0.40d;
-                    break;
-                case 3:
-                    baseProbability = 0.35d;
-                    confidenceInfluence = 0.45d;
-                    break;
-                default:
-                    return 0d;
+                return 0d;
             }
 
-            return Math.Min(MaximumCounterProbability, baseProbability + confidence * confidenceInfluence);
+            double baseProbability = tuning.GetCounterBaseProbability(IntelligenceLevel);
+            double confidenceWeight = tuning.GetCounterConfidenceWeight(IntelligenceLevel);
+            return Math.Min(
+                tuning.MaximumCounterProbability,
+                baseProbability + confidence * confidenceWeight);
         }
 
         private EnemyIntent ChooseBaselineIntent(EnemyDecisionContext context)
